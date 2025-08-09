@@ -42,34 +42,9 @@ class Game:
         self.round = 0
 
     # ================================ [필수 구현] ================================
-    # [개선됨] 안정적으로 점수를 관리하는 '보수적인 입찰 전략'
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
-        # 각 주사위 묶음의 최대 기대 효율(utility)을 계산
-        _, _, utility_a = self._calculate_best_put_for_dice(dice_a, self.my_state)
-        _, _, utility_b = self._calculate_best_put_for_dice(dice_b, self.my_state)
-
-        # 더 높은 효율을 가진 그룹에 입찰
-        group = "A" if utility_a > utility_b else "B"
-        
-        # 보수적인 입찰 금액 산정
-        score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
-
-        # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
-        if score_diff > 5000:
-            return Bid(group, 0)
-        
-        # 지고 있거나 점수 차이가 크지 않을 때만 계산된 입찰을 시도
-        utility_diff = abs(utility_a - utility_b)
-        amount = int(utility_diff * 3000) # 효율 차이에 대한 가중치를 낮춰 입찰액을 줄임
-
-        # 만약 지고 있다면, 뒤처진 점수 이상으로 과도하게 베팅하지 않도록 상한선을 설정
-        if score_diff < 0:
-            max_bid_to_catch_up = abs(score_diff) + 1000 # 뒤처진 점수 + 약간의 추가금액
-            amount = min(amount, max_bid_to_catch_up)
-        else: # 이기고 있지만 점수 차이가 적을 경우, 최대 2000점까지만 베팅
-            amount = min(amount, 2000)
-        
-        return Bid(group, max(0, min(100000, int(amount))))
+        # NOTE: 점수 획득 로직을 우선 개선하기 위하여 임시로 A를 0원에 입찰하도록 고정
+        return Bid('A', 0)
 
     # 효율성 기반 점수 획득 로직은 그대로 유지
     def calculate_put(self) -> DicePut:
