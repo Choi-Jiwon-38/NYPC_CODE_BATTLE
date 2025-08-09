@@ -29,7 +29,7 @@ AVERAGE_SCORES = {
     DiceRule.SMALL_STRAIGHT: 15000, DiceRule.LARGE_STRAIGHT: 30000, DiceRule.YACHT: 17000,
 }
 
-# 점수를 버려야 할 때의 우선순위 (사용자 전략 기반)
+# 점수를 버려야 할 때의 희생 우선순위
 SACRIFICE_PRIORITY = [
     # 가장 먼저 버릴 것들 (낮은 점수 + 높은 확률)
     DiceRule.ONE,      # 1은 점수가 낮고 버퍼로 사용
@@ -53,6 +53,14 @@ SACRIFICE_PRIORITY = [
 
 # 가중치 상수들
 # 가중치 조정할 때 숫자를 변경하여 조절할 것!
+# - 점수 우선 순위 -
+# 1. 야추
+# 2. FOUR, FIVE, SIX 적어도 3개이상
+# 3. 숫자가 큰 Full House, Four of kind
+# 4. Large Straight, Small Straight
+# 5. 숫자가 작은 Full House, Four of kind
+# 6. ONE, TWO ,THREE (보통 마땅히 않을 때 0으로 버릴 가능성이 높음)
+
 W_YACHT = 3.0
 W_LARGE_STRAIGHT = 2.5
 W_SMALL_STRAIGHT = 1.8
@@ -75,9 +83,11 @@ W_NUMBERS = [
     2.4    # 6
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
-LOW_UTILITY = 0.01 # 효율성이 이 이하이면 SACRIFICE
-NR_END_GAME = 3    # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
-NR_BUFFERING_1 = 4 # 1을 버퍼로 남겨두기 위해 필요한 Rule 개수의 임계값
+LOW_UTILITY = 0.01      # 효율성이 이 이하이면 SACRIFICE
+SCORE_GOOD_CHOICE = 20  # W_NICE_CHOICE를 적용할 임계 점수
+SCORE_HIGH_SUM = 18     # 풀하우스, 포오카가 좋은 선택일지 정하는 임계 점수
+NR_END_GAME = 3         # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
+NR_BUFFERING_1 = 4      # 1을 버퍼로 남겨두기 위해 필요한 Rule 개수의 임계값
 NR_SAVING = 4           # 몇 개나 일치할 때 W_SAVING을 곱할지 정하는 임계값
 
 # 입찰 방법을 나타내는 데이터클래스
@@ -295,13 +305,13 @@ class Game:
                     elif rule in [DiceRule.FOUR_OF_A_KIND, DiceRule.FULL_HOUSE]:
                         # 낮은 숫자 조합은 페널티
                         dice_sum = sum(dice)
-                        if dice_sum < 15:
+                        if dice_sum < SCORE_HIGH_SUM:
                             utility *= W_DEMOTION  # 낮은 합계면 큰 페널티
                         else:
                             utility *= W_HIGH_PROMOTION  # 높은 합계면 보너스
                     elif rule == DiceRule.CHOICE:
                         dice_sum = sum(dice)
-                        if dice_sum >= 20:
+                        if dice_sum >= SCORE_GOOD_CHOICE:
                             utility *= W_NICE_CHOICE  # 높은 합계면 큰 보너스
                         else:
                             utility *= W_BAD_CHOICE  # 기본 보너스
