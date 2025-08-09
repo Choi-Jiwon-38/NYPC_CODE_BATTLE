@@ -68,6 +68,20 @@ class Game:
         return best_put
     # ============================== [필수 구현 끝] ==============================
 
+    def get_importance_of_numbers(self) -> List[int]:
+        importance_of_numbers = [1] * 6
+        _rule_score = self.my_state.rule_score
+        _dice_count = [self.my_state.dice.count(i) for i in range(6)]
+
+        # 현재 보유 중인 숫자가 많은 경우에는 최대한 사용하지 않도록 함
+        for num in range(6):
+            importance_of_numbers[num] *= (1 + 0.1 * {_dice_count[num]})
+
+        # 기본 점수 규칙(ONE ~ SIX)을 만족하지 못한 경우에는 해당 숫자의 중요도를 올림.
+        for num in range(6):
+            if _rule_score[num] is None:
+                importance_of_numbers[num] * 1.5 # 임시로 가중치 3 곱함.
+
     def _calculate_best_put_for_dice(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], int, float]:
         best_rule, best_score, max_utility = None, -1, -1.0
 
