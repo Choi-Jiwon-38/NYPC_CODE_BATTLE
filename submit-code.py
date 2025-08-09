@@ -65,6 +65,7 @@ class Game:
 
         if len(best_put) == 0 or max_utility <= 0.01:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
+            # 5개를 앞에서 버리는 것이 아닌 중요도가 낮은 숫자 5개를 버리도록 해야됨.
             dice_to_sacrifice = self.my_state.dice[:5]
             return DicePut(rule_to_sacrifice, dice_to_sacrifice)
         
@@ -92,7 +93,9 @@ class Game:
         # 기본 점수 규칙(ONE ~ SIX)을 만족하지 못한 경우에는 해당 숫자의 중요도를 올림.
         for num in range(6):
             if _rule_score[num] is None:
-                importance_of_numbers[num] * 1.2
+                importance_of_numbers[num] *= 1.2
+
+        return importance_of_numbers
 
     def _calculate_best_put_for_dice(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], int, float]:
         best_rule, best_score, max_utility = None, -1, -1.0
