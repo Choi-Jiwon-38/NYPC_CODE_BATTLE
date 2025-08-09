@@ -51,6 +51,7 @@ SACRIFICE_PRIORITY = [
     DiceRule.LARGE_STRAIGHT,
 ]
 
+# ==================================================================== #
 # 가중치 상수들
 # 가중치 조정할 때 숫자를 변경하여 조절할 것!
 # - 점수 우선 순위 -
@@ -62,16 +63,17 @@ SACRIFICE_PRIORITY = [
 # 6. ONE, TWO ,THREE (보통 마땅히 않을 때 0으로 버릴 가능성이 높음)
 
 W_YACHT = 3.0
-W_LARGE_STRAIGHT = 2.5
+W_LARGE_STRAIGHT = 2.3
 W_SMALL_STRAIGHT = 1.8
 W_DEMOTION = 0.3
-W_HIGH_PROMOTION = 2.0
-W_LOW_PROMOTION = 1.3
+W_HIGH_PROMOTION = 2.5
+W_LOW_PROMOTION = 1.5
 W_NICE_CHOICE = 1.7
-W_BAD_CHOICE = 0.8
-W_BASIC = 0.6
-W_SAVING = 0.8
+W_BAD_CHOICE = 0.5
+W_BASIC = 0.3
+W_SAVING = 0.7
 
+# 숫자의 중요도
 W_IMPORTANT = 1.2
 W_NOT_IMPORTANT = 0.8
 W_NUMBERS = [
@@ -83,12 +85,14 @@ W_NUMBERS = [
     2.4    # 6
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
-LOW_UTILITY = 0.01      # 효율성이 이 이하이면 SACRIFICE
-SCORE_GOOD_CHOICE = 20  # W_NICE_CHOICE를 적용할 임계 점수
-SCORE_HIGH_SUM = 18     # 풀하우스, 포오카가 좋은 선택일지 정하는 임계 점수
-NR_END_GAME = 3         # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
-NR_BUFFERING_1 = 4      # 1을 버퍼로 남겨두기 위해 필요한 Rule 개수의 임계값
-NR_SAVING = 4           # 몇 개나 일치할 때 W_SAVING을 곱할지 정하는 임계값
+LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
+SCORE_GOOD_CHOICE = 22    # W_NICE_CHOICE를 적용할 임계 점수
+SCORE_HIGH_FULLHOUSE = 18 # Full House가 좋은 선택일지 정하는 임계 점수
+SCORE_HIGH_FOK = 15       # Four of Kind가 좋은 선택일지 정하는 임계 점수
+NR_END_GAME = 2           # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
+NR_BUFFERING_1 = 1        # 1을 버퍼로 남겨두기 위해 필요한 Rule 개수의 임계값
+
+# ==================================================================== #
 
 # 입찰 방법을 나타내는 데이터클래스
 @dataclass
@@ -304,12 +308,23 @@ class Game:
                     count_of_number = dice.count(dice_number)
                     
                     # 우선순위 2번: 4, 5, 6이 3개 이상일 때만 높은 가치를 부여
-                    if dice_number in [4, 5, 6] and count_of_number >= 3:
-                        # 보너스를 위한 핵심 점수이므로 높은 가중치를 부여합니다.
-                        utility *= W_HIGH_PROMOTION
+                    # FOUR 규칙은 4개 이상일 때만 높은 가중치 적용
+                    if dice_number == 4:
+                        if count_of_number >= 4:
+                            utility *= W_HIGH_PROMOTION
+                        else:
+                            utility *= W_DEMOTION
+                    
+                    # FIVE와 SIX 규칙은 3개 이상일 때만 높은 가중치 적용
+                    elif dice_number in [5, 6]:
+                        if count_of_number >= 3:
+                            utility *= W_HIGH_PROMOTION
+                        else:
+                            utility *= W_DEMOTION
+                    
+                    # 그 외 나머지 기본 규칙(ONE, TWO, THREE)은 낮은 가중치 적용
                     else:
-                        # 그 외의 경우는 낮은 가치를 부여하여 다른 조합을 우선하도록 합니다.
-                        utility *= W_NOT_IMPORTANT
+                        utility *= W_DEMOTION
 
                 # --- 조합 규칙 ---
                 else:
@@ -323,8 +338,13 @@ class Game:
                     elif rule == DiceRule.SMALL_STRAIGHT:
                         utility *= W_SMALL_STRAIGHT
                     # 우선순위 3, 5번: Full House, Four of a Kind
-                    elif rule in [DiceRule.FOUR_OF_A_KIND, DiceRule.FULL_HOUSE]:
-                        if dice_sum >= SCORE_HIGH_SUM:
+                    elif rule == DiceRule.FOUR_OF_A_KIND:
+                        if dice_sum >= SCORE_HIGH_FOK:
+                            utility *= W_HIGH_PROMOTION
+                        else:
+                            utility *= W_DEMOTION
+                    elif rule == DiceRule.FULL_HOUSE:
+                        if dice_sum >= SCORE_HIGH_FULLHOUSE:
                             utility *= W_HIGH_PROMOTION
                         else:
                             utility *= W_DEMOTION
@@ -340,17 +360,27 @@ class Game:
                 
                 # 4. 미래 가치를 위해 현재 규칙을 아껴두는 'Saving' 전략
                 remaining_dice = [d for d in state.dice if d not in dice]
-                if len(remaining_dice) >= NR_SAVING:
+                if len(remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
                     from collections import Counter
                     counts = Counter(remaining_dice)
-                    # 남은 주사위에 같은 숫자가 4개 이상이면, 다음 턴 Yacht/Four-of-a-kind를 기대
-                    if counts.most_common(1)[0][1] >= NR_SAVING:
-                        if rule in [DiceRule.YACHT, DiceRule.FOUR_OF_A_KIND]:
+                    # 남은 주사위에 같은 숫자가 4개 이상이면, 다음 턴 Yacht를 기대
+                    if counts.most_common(1)[0][1] >= 4:
+                        if rule == DiceRule.YACHT:
                             utility *= W_SAVING
                     
                     # 남은 주사위가 스트레이트를 만들기 좋다면, 스트레이트 규칙을 아껴둠
-                    if len(set(remaining_dice)) >= NR_SAVING:
-                        if rule == DiceRule.SMALL_STRAIGHT:
+                    # 남은 주사위 중 다른 숫자가 4개 이상이고, 그 중 3개 이상이 연속되는지 확인
+                    unique_remaining = sorted(list(set(remaining_dice)))
+                    if len(unique_remaining) >= 3:
+                        has_potential = False
+                        # 3칸 연속 (예: 1,2,3 또는 2,3,4)이 있는지 확인
+                        for i in range(len(unique_remaining) - 2):
+                            if unique_remaining[i+1] == unique_remaining[i] + 1 and \
+                                unique_remaining[i+2] == unique_remaining[i] + 2:
+                                has_potential = True
+                                break
+                            
+                        if has_potential and rule in [DiceRule.SMALL_STRAIGHT, DiceRule.LARGE_STRAIGHT]:
                             utility *= W_SAVING
 
                 if utility > max_utility:
@@ -375,23 +405,6 @@ class Game:
                 utility *= W_HIGH_PROMOTION
             # 낮은 점수라도 확실한 점수 확보
             elif score > 0:
-                utility *= W_LOW_PROMOTION
-        
-        # 3. 기회 활용 (찬스나 낮은 족보도 상황에 따라 활용)
-        if rule == DiceRule.CHOICE:
-            dice_sum = sum(dice)
-            if dice_sum >= 18:  # 높은 합계면 더 큰 보너스
-                utility *= W_NICE_CHOICE
-            elif dice_sum >= 12:  # 중간 합계면 기본 보너스
-                utility *= W_LOW_PROMOTION
-        
-        # 4. 변수 대응 (유연한 전략)
-        # 1은 버퍼로 사용하되, 다른 선택이 없으면 활용
-        if rule == DiceRule.ONE:
-            other_options = sum(1 for r in DiceRule if r != rule and state.rule_score[r.value] is None)
-            if other_options > NR_BUFFERING_1:  # 다른 선택이 많으면 1은 페널티
-                utility *= W_DEMOTION
-            else:  # 다른 선택이 적으면 1도 활용
                 utility *= W_LOW_PROMOTION
         
         return utility
