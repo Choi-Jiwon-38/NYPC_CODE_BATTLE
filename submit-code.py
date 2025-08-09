@@ -46,6 +46,45 @@ class Game:
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
         # NOTE: 점수 획득 로직을 우선 개선하기 위하여 임시로 A를 0원에 입찰하도록 고정
         return Bid('A', 0)
+    
+        # # 각 주사위 묶음의 최대 기대 효율(utility)을 계산
+        # _, score, utility_a = self._calculate_best_put_for_dice(dice_a, self.my_state)
+        # _, _, utility_b = self._calculate_best_put_for_dice(dice_b, self.my_state)
+
+        # # 더 높은 효율을 가진 그룹에 입찰
+        # group = "A" if utility_a > utility_b else "B"
+        
+        # # 보수적인 입찰 금액 산정
+        # score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
+
+        # # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
+        # if score_diff > 5000:
+        #     return Bid(group, 0)
+        # else:
+        #     # 상대방 히스토리 기반 베팅 금액 계산
+        #     if self.opp_bid_history:
+        #         # 상대방 베팅 히스토리 분석
+        #         max_opp_bid = max(self.opp_bid_history)
+        #         sorted_bids = sorted(self.opp_bid_history, reverse=True)
+        #         top_3_avg = sum(sorted_bids[:3]) / min(3, len(sorted_bids))
+        #         avg_opp_bid = sum(self.opp_bid_history) / len(self.opp_bid_history)
+                
+        #         # 점수에 따른 베팅 전략
+        #         if score >= 50000:  # Yacht - 가장 공격적
+        #             amount = int(max_opp_bid * 1.2)  # 최대 베팅의 1.2배
+        #         elif score >= 30000:  # Large Straight - 매우 공격적
+        #             amount = int(top_3_avg * 1.1)  # 상위 3개 평균의 1.1배
+        #         elif score >= 15000:  # Small Straight - 공격적
+        #             amount = int(top_3_avg * 1.05)  # 상위 3개 평균의 1.05배
+        #         elif score >= 10000:  # 높은 기본 점수 - 적당히 공격적
+        #             amount = int(avg_opp_bid * 1.1)  # 평균 베팅의 1.1배
+        #         else:
+        #             amount = int(avg_opp_bid * 0.5)  # 평균 베팅의 0.5배
+        #     else:
+        #         amount = 0
+        
+        # return Bid(group, amount)
+
 
     # 효율성 기반 점수 획득 로직은 그대로 유지
     def calculate_put(self) -> DicePut:
