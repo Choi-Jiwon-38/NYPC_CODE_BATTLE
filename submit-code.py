@@ -48,7 +48,7 @@ class Game:
 
     # 효율성 기반 점수 획득 로직은 그대로 유지
     def calculate_put(self) -> DicePut:
-        best_put = None
+        best_put = []
         max_utility = -1.0
         
         dice_pool = self.my_state.dice
@@ -56,16 +56,28 @@ class Game:
         for dice_combination in combinations(dice_pool, 5):
             dice_list = list(dice_combination)
             best_rule, _, utility = self._calculate_best_put_for_dice(dice_list, self.my_state)
-            if utility > max_utility:
+            if utility >= max_utility:
                 max_utility = utility
-                best_put = DicePut(best_rule, dice_list)
+                if utility == max_utility:
+                    best_put = [DicePut(best_rule, dice_list)]
+                else:
+                    best_put.append(DicePut(best_rule, dice_list))
 
-        if best_put is None or max_utility <= 0.01:
+        if len(best_put) == 0 or max_utility <= 0.01:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
             dice_to_sacrifice = self.my_state.dice[:5]
             return DicePut(rule_to_sacrifice, dice_to_sacrifice)
-            
-        return best_put
+        
+        if len(best_put) == 1:
+            return best_put[0]
+        
+        # 여러 후보 중 중요도 합이 가장 낮은 것을 선택
+        importance = self.get_importance_of_numbers()
+        def importance_sum(dice_list):
+            return sum(importance[val - 1] for val in dice_list)
+        best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
+        return best_put[0]
+
     # ============================== [필수 구현 끝] ==============================
 
     def get_importance_of_numbers(self) -> List[int]:
