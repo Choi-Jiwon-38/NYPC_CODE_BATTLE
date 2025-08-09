@@ -39,6 +39,7 @@ class Game:
     def __init__(self):
         self.my_state = GameState()
         self.opp_state = GameState()
+        self.opp_bid_history: List[int] = []
         self.round = 0
 
     # ================================ [필수 구현] ================================
@@ -121,6 +122,8 @@ class Game:
 
     def update_get(self, dice_a: List[int], dice_b: List[int], my_bid: Bid, opp_bid: Bid, my_group: str):
         self.round += 1
+        self.opp_bid_history.append(opp_bid.amount)
+
         if my_group == "A": self.my_state.add_dice(dice_a); self.opp_state.add_dice(dice_b)
         else: self.my_state.add_dice(dice_b); self.opp_state.add_dice(dice_a)
         self.my_state.bid(my_bid.group == my_group, my_bid.amount)
