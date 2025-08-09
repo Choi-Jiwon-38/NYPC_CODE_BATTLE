@@ -59,9 +59,9 @@ class Game:
             if utility >= max_utility:
                 max_utility = utility
                 if utility == max_utility:
-                    best_put = [DicePut(best_rule, dice_list)]
-                else:
                     best_put.append(DicePut(best_rule, dice_list))
+                else:
+                    best_put = [DicePut(best_rule, dice_list)]
 
         if len(best_put) == 0 or max_utility <= 0.01:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
