@@ -83,7 +83,7 @@ class Game:
     # ============================== [필수 구현 끝] ==============================
 
     def get_importance_of_numbers(self) -> List[int]:
-        importance_of_numbers = [1, 1.2, 1.4, 1.6, 1.8, 2] # 높은 숫자일수록 기본적으로 중요도가 높음
+        importance_of_numbers = [1, 1.2, 1.4, 2, 2.2, 2.4] # 높은 숫자일수록 기본적으로 중요도가 높음
         _rule_score = self.my_state.rule_score
         _dice_count = [self.my_state.dice.count(i) for i in range(6)]
 
@@ -95,6 +95,8 @@ class Game:
         for num in range(6):
             if _rule_score[num] is None:
                 importance_of_numbers[num] *= 1.2
+            else:
+                importance_of_numbers[num] *= 0.8
 
         return importance_of_numbers
 
