@@ -56,12 +56,11 @@ class Game:
         for dice_combination in combinations(dice_pool, 5):
             dice_list = list(dice_combination)
             best_rule, _, utility = self._calculate_best_put_for_dice(dice_list, self.my_state)
-            if utility >= max_utility:
+            if utility > max_utility:
                 max_utility = utility
-                if utility == max_utility:
-                    best_put.append(DicePut(best_rule, dice_list))
-                else:
-                    best_put = [DicePut(best_rule, dice_list)]
+                best_put = [DicePut(best_rule, dice_list)]
+            elif utility == max_utility:
+                best_put.append(DicePut(best_rule, dice_list))
 
         if len(best_put) == 0 or max_utility <= 0.01:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
