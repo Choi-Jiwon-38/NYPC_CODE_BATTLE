@@ -285,70 +285,76 @@ class Game:
     def _calculate_best_put_for_dice(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], int, float]:
         best_rule, best_score, max_utility = None, -1, -1.0
         
-        # 모든 규칙을 점수 순으로 정렬하여 시도
         all_rules = list(DiceRule)
         
         for rule in all_rules:
             if state.rule_score[rule.value] is None:
                 score = GameState.calculate_score(DicePut(rule, dice))
-                if score > 0:  # 점수가 있는 경우만 고려
-                    utility = score / AVERAGE_SCORES.get(rule, 1) if AVERAGE_SCORES.get(rule, 1) > 0 else 0
-                    utility = self._apply_strategy(rule, score, dice, utility, state)
+
+                if score <= 0:
+                    continue
+
+                # 1. 기본 효율성(Utility) 계산
+                utility = score / AVERAGE_SCORES.get(rule, 1) if AVERAGE_SCORES.get(rule, 1) > 0 else 0
+                
+                # 2. 우선순위에 따른 전략적 가중치 적용
+                # --- 기본 숫자 규칙 (ONE ~ SIX) ---
+                if rule.value <= 5:
+                    dice_number = rule.value + 1
+                    count_of_number = dice.count(dice_number)
                     
-                    # 조합 규칙 우선 가중치
+                    # 우선순위 2번: 4, 5, 6이 3개 이상일 때만 높은 가치를 부여
+                    if dice_number in [4, 5, 6] and count_of_number >= 3:
+                        # 보너스를 위한 핵심 점수이므로 높은 가중치를 부여합니다.
+                        utility *= W_HIGH_PROMOTION
+                    else:
+                        # 그 외의 경우는 낮은 가치를 부여하여 다른 조합을 우선하도록 합니다.
+                        utility *= W_NOT_IMPORTANT
+
+                # --- 조합 규칙 ---
+                else:
+                    dice_sum = sum(dice)
+                    # 우선순위 1번: Yacht
                     if rule == DiceRule.YACHT:
-                        utility *= W_YACHT  # YACHT는 최우선
+                        utility *= W_YACHT
+                    # 우선순위 4번: Large/Small Straight
                     elif rule == DiceRule.LARGE_STRAIGHT:
-                        utility *= W_LARGE_STRAIGHT  # Large Straight는 매우 우선
+                        utility *= W_LARGE_STRAIGHT
                     elif rule == DiceRule.SMALL_STRAIGHT:
-                        utility *= W_SMALL_STRAIGHT  # Small Straight도 우선
+                        utility *= W_SMALL_STRAIGHT
+                    # 우선순위 3, 5번: Full House, Four of a Kind
                     elif rule in [DiceRule.FOUR_OF_A_KIND, DiceRule.FULL_HOUSE]:
-                        # 낮은 숫자 조합은 페널티
-                        dice_sum = sum(dice)
-                        if dice_sum < SCORE_HIGH_SUM:
-                            utility *= W_DEMOTION  # 낮은 합계면 큰 페널티
+                        if dice_sum >= SCORE_HIGH_SUM:
+                            utility *= W_HIGH_PROMOTION
                         else:
-                            utility *= W_HIGH_PROMOTION  # 높은 합계면 보너스
+                            utility *= W_DEMOTION
+                    # Choice 규칙
                     elif rule == DiceRule.CHOICE:
-                        dice_sum = sum(dice)
                         if dice_sum >= SCORE_GOOD_CHOICE:
-                            utility *= W_NICE_CHOICE  # 높은 합계면 큰 보너스
+                            utility *= W_NICE_CHOICE
                         else:
-                            utility *= W_BAD_CHOICE  # 기본 보너스
-                    elif rule.value <= 5: # 기본 규칙 (ONE~SIX)
-                        dice_number = rule.value + 1
-                        # 4는 4개 / 5, 6은 3개 이상일 때 높은 가중치를 부여합니다.
-                        if dice_number in [4]:
-                            count_of_number = dice.count(dice_number)
-                            if count_of_number >= 4:
-                                utility *= W_HIGH_PROMOTION
-                        elif dice_number in [5, 6]:
-                            count_of_number = dice.count(dice_number)
-                            if count_of_number >= 3:
-                                utility *= W_HIGH_PROMOTION
-                                
-                        # 일반적인 높은 숫자 선호 전략을 사용합니다.
-                        utility *= (1 + dice_number * W_BASIC)
+                            utility *= W_BAD_CHOICE
 
-                    # === 미래 가치 보존 전략 추가 ===
-                    # 남은 주사위들로 더 좋은 점수를 기대할 수 있는 규칙은 현재 가치를 약간 낮춰 아껴둠
-                    remaining_dice = [d for d in state.dice if d not in dice]
-                    if len(remaining_dice) >= 4:
-                        # 남은 주사위에 같은 숫자가 4개 이상이면, 다음 턴 Yacht/Four-of-a-kind를 기대
-                        from collections import Counter
-                        counts = Counter(remaining_dice)
-                        if counts.most_common(1)[0][1] >= NR_SAVING:
-                            if rule in [DiceRule.YACHT, DiceRule.FOUR_OF_A_KIND]:
-                                utility *= W_SAVING # 현재 이 규칙을 사용하는 것의 가치를 감소시켜 아껴둠
-
-                        # 남은 주사위가 스트레이트를 만들기 좋다면, 스트레이트 규칙을 아껴둠
-                        unique_remaining = sorted(list(set(remaining_dice)))
-                        if len(unique_remaining) >= NR_SAVING: # Small Straight 가능성
-                            if rule == DiceRule.SMALL_STRAIGHT:
-                                utility *= W_SAVING
+                # 3. 전체 게임 상황을 고려한 추가 가중치 적용
+                utility = self._apply_strategy(rule, score, dice, utility, state)
+                
+                # 4. 미래 가치를 위해 현재 규칙을 아껴두는 'Saving' 전략
+                remaining_dice = [d for d in state.dice if d not in dice]
+                if len(remaining_dice) >= NR_SAVING:
+                    from collections import Counter
+                    counts = Counter(remaining_dice)
+                    # 남은 주사위에 같은 숫자가 4개 이상이면, 다음 턴 Yacht/Four-of-a-kind를 기대
+                    if counts.most_common(1)[0][1] >= NR_SAVING:
+                        if rule in [DiceRule.YACHT, DiceRule.FOUR_OF_A_KIND]:
+                            utility *= W_SAVING
                     
-                    if utility > max_utility:
-                        max_utility, best_rule, best_score = utility, rule, score
+                    # 남은 주사위가 스트레이트를 만들기 좋다면, 스트레이트 규칙을 아껴둠
+                    if len(set(remaining_dice)) >= NR_SAVING:
+                        if rule == DiceRule.SMALL_STRAIGHT:
+                            utility *= W_SAVING
+
+                if utility > max_utility:
+                    max_utility, best_rule, best_score = utility, rule, score
         
         return best_rule, best_score, max_utility
 
