@@ -26,7 +26,7 @@ AVERAGE_SCORES = {
     DiceRule.ONE: 1880, DiceRule.TWO: 5280, DiceRule.THREE: 8570,
     DiceRule.FOUR: 12160, DiceRule.FIVE: 15690, DiceRule.SIX: 19190,
     DiceRule.CHOICE: 22000, DiceRule.FOUR_OF_A_KIND: 13100, DiceRule.FULL_HOUSE: 22590,
-    DiceRule.SMALL_STRAIGHT: 15000, DiceRule.LARGE_STRAIGHT: 30000, DiceRule.YACHT: 50000,
+    DiceRule.SMALL_STRAIGHT: 15000, DiceRule.LARGE_STRAIGHT: 30000, DiceRule.YACHT: 17000,
 }
 
 # 점수를 버려야 할 때의 우선순위 (사용자 전략 기반)
@@ -63,6 +63,14 @@ W_NICE_CHOICE = 1.7
 W_BAD_CHOICE = 0.8
 W_BASIC = 0.6
 W_SAVING = 0.8
+W_NUMBERS = [
+    1,     # 1
+    1.2,   # 2
+    1.4,   # 3
+    2,     # 4
+    2.2,   # 5
+    2.4    # 6
+] # 높은 숫자일수록 기본적으로 중요도가 높음
 
 LOW_UTILITY = 0.01 # 효율성이 이 이하이면 SACRIFICE
 NR_END_GAME = 3    # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
@@ -97,7 +105,6 @@ class Game:
     # 1450점의 베팅 전략
     # 지금은 아직 점수 선택을 먼저 수정해야 하므로
     # 베팅은 기본 베팅으로 적용!
-    """
     def _calculate_bid_amount(self, utility_a: float, utility_b: float, score_diff: int) -> int:
         ### 상대방 히스토리 기반 베팅 금액 계산 (전략적 개선) ###
         
@@ -207,9 +214,9 @@ class Game:
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
         # 고정된 입찰 전략: 무조건 A를 선택하고 0원으로 베팅
         return Bid("A", 0)
-    
+    """
     def calculate_put(self) -> DicePut:
-        best_put = None
+        best_put = []
         max_utility = -1.0
         
         dice_pool = self.my_state.dice
@@ -223,17 +230,44 @@ class Game:
             best_rule, _, utility = self._calculate_best_put_for_dice(dice_list, self.my_state)
             if utility > max_utility:
                 max_utility = utility
-                best_put = DicePut(best_rule, dice_list)
+                best_put = [DicePut(best_rule, dice_list)]
+            elif utility == max_utility:
+                best_put.append(DicePut(best_rule, dice_list))
 
-        if best_put is None or max_utility <= LOW_UTILITY:
+        if len(best_put) == 0 or max_utility <= LOW_UTILITY:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
-            # TODO
-            # 주사위를 ㅄ 같이 버림
-            dice_to_sacrifice = self.my_state.dice[:num_to_pick] 
+            importance = self.get_importance_of_numbers()
+            # 중요도가 낮은 순으로 5개 선택
+            dice_to_sacrifice = sorted(self.my_state.dice, key=lambda d: importance[d - 1])[:5]
             return DicePut(rule_to_sacrifice, dice_to_sacrifice)
-            
-        return best_put
+
+        if len(best_put) == 1:
+            return best_put[0]
+        
+        # 여러 후보 중 중요도 합이 가장 낮은 것을 선택
+        importance = self.get_importance_of_numbers()
+        def importance_sum(dice_list):
+            return sum(importance[val - 1] for val in dice_list)
+        best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
+        return best_put[0]
     # ============================== [필수 구현 끝] ==============================
+
+    def get_importance_of_numbers(self) -> List[int]:
+        _rule_score = self.my_state.rule_score
+        _dice_count = [self.my_state.dice.count(i) for i in range(6)]
+
+        # 현재 보유 중인 숫자가 많은 경우에는 최대한 사용하지 않도록 함
+        for num in range(6):
+            W_NUMBERS[num] *= (1 + 0.1 * _dice_count[num])
+
+        # 기본 점수 규칙(ONE ~ SIX)을 만족하지 못한 경우에는 해당 숫자의 중요도를 올림.
+        for num in range(6):
+            if _rule_score[num] is None:
+                W_NUMBERS[num] *= 1.2
+            else:
+                W_NUMBERS[num] *= 0.8
+
+        return W_NUMBERS
 
     def _calculate_best_put_for_dice(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], int, float]:
         best_rule, best_score, max_utility = None, -1, -1.0
