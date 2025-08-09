@@ -63,6 +63,9 @@ W_NICE_CHOICE = 1.7
 W_BAD_CHOICE = 0.8
 W_BASIC = 0.6
 W_SAVING = 0.8
+
+W_IMPORTANT = 1.2
+W_NOT_IMPORTANT = 0.8
 W_NUMBERS = [
     1,     # 1
     1.2,   # 2
@@ -263,9 +266,9 @@ class Game:
         # 기본 점수 규칙(ONE ~ SIX)을 만족하지 못한 경우에는 해당 숫자의 중요도를 올림.
         for num in range(6):
             if _rule_score[num] is None:
-                W_NUMBERS[num] *= 1.2
+                W_NUMBERS[num] *= W_IMPORTANT
             else:
-                W_NUMBERS[num] *= 0.8
+                W_NUMBERS[num] *= W_NOT_IMPORTANT
 
         return W_NUMBERS
 
@@ -304,21 +307,18 @@ class Game:
                             utility *= W_BAD_CHOICE  # 기본 보너스
                     elif rule.value <= 5: # 기본 규칙 (ONE~SIX)
                         dice_number = rule.value + 1
-                        # 1. (새로운 전략) 4, 5, 6이 4개 이상일 때 높은 가중치를 부여합니다.
-                        if dice_number in [4, 5, 6]:
+                        # 4는 4개 / 5, 6은 3개 이상일 때 높은 가중치를 부여합니다.
+                        if dice_number in [4]:
                             count_of_number = dice.count(dice_number)
                             if count_of_number >= 4:
-                                # 매우 높은 점수를 확보할 수 있는 좋은 기회이므로, 가치를 크게 높입니다.
                                 utility *= W_HIGH_PROMOTION
-                            else:
-                                # count가 3 이하여도 기존의 전략을 사용
-                                number_weight = dice_number
-                                utility *= (1 + number_weight * W_BASIC)
+                        elif dice_number in [5, 6]:
+                            count_of_number = dice.count(dice_number)
+                            if count_of_number >= 3:
+                                utility *= W_HIGH_PROMOTION
                                 
-                        # 2. (기존 전략) 위의 특수 조건이 아닐 경우, 일반적인 높은 숫자 선호 전략을 사용합니다.
-                        else:
-                            number_weight = dice_number
-                            utility *= (1 + number_weight * W_BASIC)
+                        # 일반적인 높은 숫자 선호 전략을 사용합니다.
+                        utility *= (1 + dice_number * W_BASIC)
 
                     # === 미래 가치 보존 전략 추가 ===
                     # 남은 주사위들로 더 좋은 점수를 기대할 수 있는 규칙은 현재 가치를 약간 낮춰 아껴둠
