@@ -2,6 +2,7 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from itertools import combinations
+from collections import Counter
 
 import sys
 
@@ -54,13 +55,6 @@ SACRIFICE_PRIORITY = [
 # ==================================================================== #
 # 가중치 상수들
 # 가중치 조정할 때 숫자를 변경하여 조절할 것!
-# - 점수 우선 순위 -
-# 1. 야추
-# 2. FOUR, FIVE, SIX 적어도 3개이상
-# 3. 숫자가 큰 Full House, Four of kind
-# 4. Large Straight, Small Straight
-# 5. 숫자가 작은 Full House, Four of kind
-# 6. ONE, TWO ,THREE (보통 마땅히 않을 때 0으로 버릴 가능성이 높음)
 
 W_YACHT = 3.0
 W_LARGE_STRAIGHT = 2.3
@@ -74,15 +68,18 @@ W_BASIC = 0.3
 W_SAVING = 0.7
 
 # 숫자의 중요도
-W_IMPORTANT = 1.2
-W_NOT_IMPORTANT = 0.8
-W_NUMBERS = [
-    1,     # 1
-    1.2,   # 2
-    1.4,   # 3
-    2,     # 4
-    2.2,   # 5
-    2.4    # 6
+# NOTE: 일단 합연산으로 구현은 했으나, 이렇게 구현해도 괜찮을지 고민 필요
+W_UP_IMPORTANT = 0.1      # +10%
+W_DOWN_IMPORTANT = -0.1   # -10%
+W_VERY_IMPORTANT = 0.2    # +20%
+W_NOT_IMPORTANT = -0.2    # -20%
+W_NUMBERS_INIT = [
+    1.0,   # 1
+    2.0,   # 2
+    3.0,   # 3
+    4.0,   # 4
+    5.0,   # 5
+    6.0    # 6
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
 LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
@@ -116,16 +113,25 @@ class Game:
         self.round = 0
         # 상대방 베팅 히스토리 (최근 10개만 유지)
         self.opp_bid_history = []
+        # 숫자의 중요도
+        self.W_NUMBERS = []
 
     # ================================ [필수 구현] ================================
 
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
         # 각 주사위 묶음의 최대 기대 효율(utility)을 계산
-        _, score, utility_a = self.calculate_best_put(dice_a, self.my_state)
-        _, _, utility_b = self.calculate_best_put(dice_b, self.my_state)
+        # NOTE: 이거 calculate_best_put 함수를 바꾸면서 같이 바꾸었는데
+        #       경매 전략 안 바꿀꺼면 제대로 변경되었는지 한번 더 확인이 필요할 수 있음
+        #       P.S. 왜 score 계산을 dice_a만 하는거지? 기존 함수도 dice_a의 score로 사용했음
+        rule, weight_a = self.calculate_best_put(dice_a, self.my_state)
+        _, weight_b = self.calculate_best_put(dice_b, self.my_state)
+        if rule is not None:
+            score = GameState.calculate_score(DicePut(rule, dice_a))
+        else:
+            score = 0
 
         # 더 높은 효율을 가진 그룹에 입찰
-        group = "A" if utility_a > utility_b else "B"
+        group = "A" if weight_a > weight_b else "B"
         
         # 보수적인 입찰 금액 산정
         score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
@@ -165,7 +171,7 @@ class Game:
     """
     def calculate_put(self) -> DicePut:
         best_put = []
-        max_utility = -1.0
+        max_weight = -1.0
         
         dice_pool = self.my_state.dice
         num_to_pick = 5 if len(dice_pool) >= 5 else len(dice_pool)
@@ -173,178 +179,215 @@ class Game:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
             return DicePut(rule_to_sacrifice, [])
 
+        # 모든 조합에 대해 max_weight인 조합을 선별
         for dice_combination in combinations(dice_pool, num_to_pick):
             dice_list = list(dice_combination)
-            best_rule, _, utility = self.calculate_best_put(dice_list, self.my_state)
-            if utility > max_utility:
-                max_utility = utility
+            best_rule, current_weight = self.calculate_best_put(dice_list, self.my_state)
+            if current_weight > max_weight:
+                max_weight = current_weight
                 best_put = [DicePut(best_rule, dice_list)]
-            elif utility == max_utility:
+            elif current_weight == max_weight:
                 best_put.append(DicePut(best_rule, dice_list))
 
-        if len(best_put) == 0 or max_utility <= LOW_UTILITY:
+
+        # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
+        #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
+        if len(best_put) == 0 or max_weight <= LOW_UTILITY:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
-            self.update_importance_of_numbers()
+            # TODO: dice_list를 사용하면 안됨. 변경 필요
+            self.update_importance_of_numbers(dice_list, self.my_state) 
             # 중요도가 낮은 순으로 5개 선택
-            dice_to_sacrifice = sorted(self.my_state.dice, key=lambda d: W_NUMBERS[d - 1])[:5]
+            dice_to_sacrifice = sorted(self.my_state.dice, key=lambda d: self.W_NUMBERS[d - 1])[:5]
             return DicePut(rule_to_sacrifice, dice_to_sacrifice)
 
         if len(best_put) == 1:
             return best_put[0]
         
         # 여러 후보 중 중요도 합이 가장 낮은 것을 선택
-        self.update_importance_of_numbers()
+        # TODO: dice_list를 사용하면 안됨. 변경 필요
+        self.update_importance_of_numbers(dice_list, self.my_state)
         def importance_sum(dice_list):
-            return sum(W_NUMBERS[val - 1] for val in dice_list)
+            return sum(self.W_NUMBERS[val - 1] for val in dice_list)
         best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
         return best_put[0]
     # ============================== [필수 구현 끝] ==============================
 
-    # W_NUMBERS를 계산하는 내부 함수
-    def update_importance_of_numbers(self) -> None:
-        _rule_score = self.my_state.rule_score
+    def initialize_importance(self):
+        # W_NUMBERS는 라운드가 넘어갈 때마다 초기화
+        self.W_NUMBERS = list(W_NUMBERS_INIT)
+
+    # W_NUMBERS를 계산하는 함수
+    # W_NUMBER 값들은 합연산으로 계산
+    def update_importance_of_numbers(self, dice: List[int], state: 'GameState') -> None:
+        # * 가중치 올림 -> 선택할 가능성 증가, 버릴 가능성 감소
+        # * 가중치 내림 -> 선택할 가능성 감소, 버릴 가능성 증가
+
+
+        # 기본 규칙 중 사용하지 않은 숫자는 많은만큼 가중치 올림
+        # 반대로 사용한 숫자는 가중치 내림
         _dice_count = [self.my_state.dice.count(i) for i in range(1, 7)]
-
-        # 현재 보유 중인 숫자가 많은 경우에는 최대한 사용하지 않도록 함
-        for num in range(6):
-            W_NUMBERS[num] *= (1 + 0.1 * _dice_count[num])
-
-        # 기본 점수 규칙(ONE ~ SIX)을 만족하지 못한 경우에는 해당 숫자의 중요도를 올림.
-        for num in range(6):
-            if _rule_score[num] is None:
-                W_NUMBERS[num] *= W_IMPORTANT
+        for number in range(1, 7):
+            num_idx = number - 1
+            if state.rule_score[num_idx] is None:
+                self.W_NUMBERS[num_idx] += (W_UP_IMPORTANT * _dice_count[num_idx])
             else:
-                W_NUMBERS[num] *= W_NOT_IMPORTANT
+                self.W_NUMBERS[num_idx] += (W_DOWN_IMPORTANT * _dice_count[num_idx])
+
+        # Yacht와 Straight 규칙 확인
+        # 규칙이 실현된 가능성이 높은 경우 버리거나 사용하지 않도록 가중치 올림
+        _remaining_dice = [d for d in state.dice if d not in dice]
+        if len(_remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
+            # 1. Yacht
+            if state.rule_score[DiceRule.YACHT.value] is None:
+                counts = Counter(_remaining_dice)
+                common_number, nr_common_number = counts.most_common(1)[0][0], counts.most_common(1)[0][1]
+            
+                # 남은 주사위에 같은 숫자가 4개 이상이면, 다음 턴 Yacht를 기대
+                if nr_common_number >= 4:
+                    self.W_NUMBERS[common_number - 1] += W_UP_IMPORTANT
+            
+            # 2. Straight
+            if state.rule_score[DiceRule.LARGE_STRAIGHT.value] is None and \
+                state.rule_score[DiceRule.SMALL_STRAIGHT.value] is None:
+
+                # 남은 주사위가 스트레이트를 만들기 좋다면, 스트레이트 규칙을 아껴둠
+                # 남은 주사위 중 다른 숫자가 4개 이상이고, 그 중 3개 이상이 연속되는지 확인
+                # NOTE: L_ST와 S_ST의 가능성을 구분하여 계산할 수도 있음, i.e) 연속 3개와 4개를 각각 계산
+                unique_remaining = sorted(list(set(_remaining_dice)))
+                if len(unique_remaining) >= 3:
+                    has_potential = False
+                    # 3칸 연속 (예: 1,2,3 또는 2,3,4)이 있는지 확인
+                    for i in range(len(unique_remaining) - 2):
+                        if unique_remaining[i+1] == unique_remaining[i] + 1 and \
+                            unique_remaining[i+2] == unique_remaining[i] + 2:
+                            has_potential = True
+                            break
+                            
+                    if has_potential:
+                        for continuos_number in unique_remaining:
+                            self.W_NUMBERS[continuos_number - 1] += W_UP_IMPORTANT
+
+        # NOTE: 중요도에 영향을 줄만한 상황이 있다면, 추가 필요
 
     # utility를 계산하는 내부 함수
-    def get_utility_of_rules(self, score: int, rule: DiceRule) -> float:
-        pass
+    # utility는 곱연산으로 계산
+    def _get_utility_of_rules(self, score: int, rule: DiceRule, dice: List[int], state: 'GameState') -> float:
+        # --- utility 계산 우선 순위 ---
+        # 1. 야추
+        # 2. FOUR, FIVE, SIX 적어도 3개이상
+        # 3. 숫자가 큰 Full House, Four of kind
+        # 4. Large Straight, Small Straight
+        # 5. 숫자가 작은 Full House, Four of kind
+        # 6. ONE, TWO ,THREE (상황이 마땅치 않을 때 0으로 버릴 가능성이 높음)
+        # -------------------------------
 
-    # 가중치를 이용해 제일 좋은 put을 반환하는 Wrapper 함수
-    def calculate_best_put(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], int, float]:
-        best_rule, best_score, max_utility = None, -1, -1.0
+        # NOTE: 일단 기존의 utility 계산 구조를 그대로 사용
+        #       개선의 여지가 남아있을 가능성 높음!
+
+        # 기본 Utility 계산
+        utility = score / AVERAGE_SCORES.get(rule, 1) if AVERAGE_SCORES.get(rule, 1) > 0 else 0
+                
+        # 우선순위에 따른 전략적 가중치 적용
+        # --- 기본 숫자 규칙 (ONE ~ SIX) ---
+        if rule.value <= 5:
+            dice_number = rule.value + 1
+            count_of_number = dice.count(dice_number)
+
+            # 우선순위 2번: 4, 5, 6이 3개 이상일 때만 높은 가치를 부여
+            # FOUR 규칙은 4개 이상일 때만 높은 가중치 적용
+            if dice_number == 4:
+                if count_of_number >= 4:
+                    utility *= W_HIGH_PROMOTION
+                else:
+                    utility *= W_DEMOTION
+                    
+            # FIVE와 SIX 규칙은 3개 이상일 때만 높은 가중치 적용
+            elif dice_number in [5, 6]:
+                if count_of_number >= 3:
+                    utility *= W_HIGH_PROMOTION
+                else:
+                    utility *= W_DEMOTION
+                    
+            # 그 외 나머지 기본 규칙(ONE, TWO, THREE)은 낮은 가중치 적용
+            else:
+                utility *= W_DEMOTION
+
+        # --- 조합 규칙 ---
+        else:
+            dice_sum = sum(dice)
+            # 우선순위 1번: Yacht
+            if rule == DiceRule.YACHT:
+                utility *= W_YACHT
+            # 우선순위 4번: Large/Small Straight
+            elif rule == DiceRule.LARGE_STRAIGHT:
+                utility *= W_LARGE_STRAIGHT
+            elif rule == DiceRule.SMALL_STRAIGHT:
+                utility *= W_SMALL_STRAIGHT
+            # 우선순위 3, 5번: Full House, Four of a Kind
+            elif rule == DiceRule.FOUR_OF_A_KIND:
+                if dice_sum >= SCORE_HIGH_FOK:
+                    utility *= W_HIGH_PROMOTION
+                else:
+                    utility *= W_DEMOTION
+            elif rule == DiceRule.FULL_HOUSE:
+                if dice_sum >= SCORE_HIGH_FULLHOUSE:
+                    utility *= W_HIGH_PROMOTION
+                else:
+                    utility *= W_DEMOTION
+            # Choice 규칙
+            # TODO: 초이스 규칙을 좀 더 고급 짬통으로 만들어야 함.
+            elif rule == DiceRule.CHOICE:
+                if dice_sum >= SCORE_GOOD_CHOICE:
+                    utility *= W_NICE_CHOICE
+                else:
+                    utility *= W_BAD_CHOICE
+
+        return utility
+
+    # 현재 상황과 가중치를 고려하여 제일 좋은 put을 반환하는 Wrapper 함수
+    def calculate_best_put(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], float, bool]:
+        best_rule, max_weight = None, -1.0
         
         all_rules = list(DiceRule)
-        
+        # TODO: 일단은 점수 계산의 중요도 업데이트를 여기에 넣어 놓기는 했는데,
+        #       이게 로깅을 찍어보면 결국 모든 조합에 대해 가중치가 다시 계산되어서
+        #       맞는 방법인지 조금 의문이 듦. 따라서, 가중치를 업데이트 하는 시점과
+        #       가중치 변수를 업데이트하는 구조를 고민해볼 필요가 있음.
+        self.update_importance_of_numbers(dice, state)
+
+        # 모든 규칙에 대해 점수를 계산
         for rule in all_rules:
             if state.rule_score[rule.value] is None:
                 score = GameState.calculate_score(DicePut(rule, dice))
 
                 if score <= 0:
                     continue
-
-                # 1. 기본 효율성(Utility) 계산
-                utility = score / AVERAGE_SCORES.get(rule, 1) if AVERAGE_SCORES.get(rule, 1) > 0 else 0
                 
-                # 2. 우선순위에 따른 전략적 가중치 적용
-                # --- 기본 숫자 규칙 (ONE ~ SIX) ---
-                if rule.value <= 5:
-                    dice_number = rule.value + 1
-                    count_of_number = dice.count(dice_number)
-                    
-                    # 우선순위 2번: 4, 5, 6이 3개 이상일 때만 높은 가치를 부여
-                    # FOUR 규칙은 4개 이상일 때만 높은 가중치 적용
-                    if dice_number == 4:
-                        if count_of_number >= 4:
-                            utility *= W_HIGH_PROMOTION
-                        else:
-                            utility *= W_DEMOTION
-                    
-                    # FIVE와 SIX 규칙은 3개 이상일 때만 높은 가중치 적용
-                    elif dice_number in [5, 6]:
-                        if count_of_number >= 3:
-                            utility *= W_HIGH_PROMOTION
-                        else:
-                            utility *= W_DEMOTION
-                    
-                    # 그 외 나머지 기본 규칙(ONE, TWO, THREE)은 낮은 가중치 적용
-                    else:
-                        utility *= W_DEMOTION
-
-                # --- 조합 규칙 ---
+                basic_score = sum(s for i, s in enumerate(state.rule_score) if s and i <= 5)
+                # Bonus를 획득하지 않은 경우 importance를 사용
+                if basic_score < 63000:
+                    importance = sum(self.W_NUMBERS)
                 else:
-                    dice_sum = sum(dice)
-                    # 우선순위 1번: Yacht
-                    if rule == DiceRule.YACHT:
-                        utility *= W_YACHT
-                    # 우선순위 4번: Large/Small Straight
-                    elif rule == DiceRule.LARGE_STRAIGHT:
-                        utility *= W_LARGE_STRAIGHT
-                    elif rule == DiceRule.SMALL_STRAIGHT:
-                        utility *= W_SMALL_STRAIGHT
-                    # 우선순위 3, 5번: Full House, Four of a Kind
-                    elif rule == DiceRule.FOUR_OF_A_KIND:
-                        if dice_sum >= SCORE_HIGH_FOK:
-                            utility *= W_HIGH_PROMOTION
-                        else:
-                            utility *= W_DEMOTION
-                    elif rule == DiceRule.FULL_HOUSE:
-                        if dice_sum >= SCORE_HIGH_FULLHOUSE:
-                            utility *= W_HIGH_PROMOTION
-                        else:
-                            utility *= W_DEMOTION
-                    # Choice 규칙
-                    elif rule == DiceRule.CHOICE:
-                        if dice_sum >= SCORE_GOOD_CHOICE:
-                            utility *= W_NICE_CHOICE
-                        else:
-                            utility *= W_BAD_CHOICE
-
-                # 3. 전체 게임 상황을 고려한 추가 가중치 적용
-                utility = self._apply_strategy(rule, score, dice, utility, state)
+                    importance = 1
                 
-                # 4. 미래 가치를 위해 현재 규칙을 아껴두는 'Saving' 전략
-                # TODO
-                # 이거 필요없는거 아님???
-                remaining_dice = [d for d in state.dice if d not in dice]
-                if len(remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
-                    from collections import Counter
-                    counts = Counter(remaining_dice)
-                    # 남은 주사위에 같은 숫자가 4개 이상이면, 다음 턴 Yacht를 기대
-                    if counts.most_common(1)[0][1] >= 4:
-                        if rule == DiceRule.YACHT:
-                            utility *= W_SAVING
-                    
-                    # 남은 주사위가 스트레이트를 만들기 좋다면, 스트레이트 규칙을 아껴둠
-                    # 남은 주사위 중 다른 숫자가 4개 이상이고, 그 중 3개 이상이 연속되는지 확인
-                    unique_remaining = sorted(list(set(remaining_dice)))
-                    if len(unique_remaining) >= 3:
-                        has_potential = False
-                        # 3칸 연속 (예: 1,2,3 또는 2,3,4)이 있는지 확인
-                        for i in range(len(unique_remaining) - 2):
-                            if unique_remaining[i+1] == unique_remaining[i] + 1 and \
-                                unique_remaining[i+2] == unique_remaining[i] + 2:
-                                has_potential = True
-                                break
-                            
-                        if has_potential and rule in [DiceRule.SMALL_STRAIGHT, DiceRule.LARGE_STRAIGHT]:
-                            utility *= W_SAVING
+                utility = (self._get_utility_of_rules(score, rule, dice, state) * importance)
 
-                if utility > max_utility:
-                    max_utility, best_rule, best_score = utility, rule, score
-        
-        return best_rule, best_score, max_utility
+                # 게임 진행 상황 고려
+                # NOTE: 이것만 고려해도 괜찮나?
+                remaining_rules = sum(1 for s in state.rule_score if s is None)
+                if remaining_rules <= NR_END_GAME:  # 게임 후반부
+                    # 높은 점수 조합 우선
+                    if rule in [DiceRule.YACHT, DiceRule.LARGE_STRAIGHT, DiceRule.SMALL_STRAIGHT]:
+                        utility *= W_HIGH_PROMOTION
+                    # 낮은 점수라도 확실한 점수 확보
+                    elif score > 0:
+                        utility *= W_LOW_PROMOTION
 
-    def _apply_strategy(self, rule: DiceRule, score: int, dice: List[int], utility: float, state: 'GameState') -> float:
-        """사용자 전략을 적용하여 utility 조정"""
+                if utility > max_weight:
+                    max_weight, best_rule = utility, rule
         
-        # 1. 보너스 점수 전략 (63점 달성 시 35점 보너스)
-        if rule.value <= 5:  # 기본 규칙 (ONE~SIX)
-            basic_score = sum(s for i, s in enumerate(state.rule_score) if s and i <= 5)
-            if basic_score < 63000 and basic_score + score >= 63000:
-                utility *= W_YACHT  # 보너스 점수 가중치 증가 (야추급)
-        
-        # 2. 게임 진행 상황 고려
-        remaining_rules = sum(1 for s in state.rule_score if s is None)
-        if remaining_rules <= NR_END_GAME:  # 게임 후반부
-            # 높은 점수 조합 우선
-            if rule in [DiceRule.YACHT, DiceRule.LARGE_STRAIGHT, DiceRule.SMALL_STRAIGHT]:
-                utility *= W_HIGH_PROMOTION
-            # 낮은 점수라도 확실한 점수 확보
-            elif score > 0:
-                utility *= W_LOW_PROMOTION
-        
-        return utility
+        return best_rule, max_weight
+
 
     def update_get(self, dice_a: List[int], dice_b: List[int], my_bid: Bid, opp_bid: Bid, my_group: str):
         self.round += 1
@@ -447,6 +490,10 @@ def main():
                     dice_a[i] = int(c)  # 문자를 숫자로 변환
                 for i, c in enumerate(str_b):
                     dice_b[i] = int(c)  # 문자를 숫자로 변환
+
+                # 경매 시작 -> 라운드 초기화
+                game.initialize_importance()
+
                 my_bid = game.calculate_bid(dice_a, dice_b)
                 print(f"BID {my_bid.group} {my_bid.amount}")
                 continue
