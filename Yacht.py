@@ -6,6 +6,12 @@ from collections import Counter
 
 import sys
 
+# ----------------------------
+# 주의사항:
+# 디버깅용 print 함수 코드가 들어가 있으므로
+# 제출시에는 Ctrl+F로 "디버깅"을 찾은 뒤에
+# 주석처리가 되어 있는지 확인 후 제출할 것!
+# ----------------------------
 
 # 가능한 주사위 규칙들을 나타내는 enum
 class DiceRule(Enum):
@@ -189,6 +195,7 @@ class Game:
             elif current_weight == max_weight:
                 best_put.append(DicePut(best_rule, dice_list))
 
+        print(f"{self.round}R - max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
 
         # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
         #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
@@ -222,6 +229,7 @@ class Game:
         # * 가중치 올림 -> 선택할 가능성 증가, 버릴 가능성 감소
         # * 가중치 내림 -> 선택할 가능성 감소, 버릴 가능성 증가
 
+        print(f"{self.round}R - 현재 importance: {self.W_NUMBERS}", file=sys.stderr) # 디버깅 용도
 
         # 기본 규칙 중 사용하지 않은 숫자는 많은만큼 가중치 올림
         # 반대로 사용한 숫자는 가중치 내림
