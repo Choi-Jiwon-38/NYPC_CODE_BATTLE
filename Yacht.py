@@ -119,60 +119,10 @@ class Game:
 
     # ================================ [필수 구현] ================================
 
-    # 1450점의 베팅 전략
-    # 지금은 아직 점수 선택을 먼저 수정해야 하므로
-    # 베팅은 기본 베팅으로 적용!
-    def _calculate_bid_amount(self, utility_a: float, utility_b: float, score_diff: int) -> int:
-        ### 상대방 히스토리 기반 베팅 금액 계산 (전략적 개선) ###
-        
-        # 기본 베팅 금액
-        utility_diff = abs(utility_a - utility_b)
-        base_amount = int(utility_diff * 3000)
-        
-        # 상대방 히스토리가 없으면 기본 금액 사용
-        if not self.opp_bid_history:
-            return min(base_amount, 2000)
-        
-        # 상대방의 최근 베팅 패턴 분석
-        recent_bids = self.opp_bid_history[-5:]  # 최근 5개
-        avg_bid = sum(recent_bids) / len(recent_bids)
-        max_recent_bid = max(recent_bids)
-        min_recent_bid = min(recent_bids)
-        
-        # 상대방 예상 베팅액 계산
-        if len(recent_bids) >= 3:
-            # 최근 트렌드 분석
-            recent_trend = recent_bids[-1] - recent_bids[-3]  # 최근 3라운드 트렌드
-            if recent_trend > 0:  # 베팅액이 증가하는 추세
-                expected_bid = max_recent_bid + int(recent_trend * 0.5)
-            else:  # 베팅액이 감소하거나 유지
-                expected_bid = avg_bid
-        else:
-            expected_bid = avg_bid
-        
-        # 전략적 베팅액 결정
-        if score_diff < 0:  # 지고 있을 때 - 더 적극적으로
-            # 상대방 예상 베팅액보다 최소 10% 더 높게 베팅
-            strategic_amount = int(expected_bid * 1.1)
-            # 뒤처진 점수 고려
-            max_bid = abs(score_diff) + 2000
-            amount = min(strategic_amount, max_bid)
-        else:  # 이기고 있을 때 - 안정적으로
-            # 상대방 예상 베팅액과 비슷하게 베팅
-            strategic_amount = int(expected_bid * 0.9)
-            amount = min(strategic_amount, 3000)
-        
-        # 최소 베팅액 보장 (상대방이 우리를 이용하는 것 방지)
-        min_bid = max(500, int(avg_bid * 0.8))
-        amount = max(amount, min_bid)
-        
-        return max(0, int(amount))
-    
-    # [개선됨] 안정적으로 점수를 관리하는 '보수적인 입찰 전략'
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
         # 각 주사위 묶음의 최대 기대 효율(utility)을 계산
-        _, _, utility_a = self._calculate_best_put_for_dice(dice_a, self.my_state)
-        _, _, utility_b = self._calculate_best_put_for_dice(dice_b, self.my_state)
+        _, score, utility_a = self.calculate_best_put(dice_a, self.my_state)
+        _, _, utility_b = self.calculate_best_put(dice_b, self.my_state)
 
         # 더 높은 효율을 가진 그룹에 입찰
         group = "A" if utility_a > utility_b else "B"
@@ -183,49 +133,30 @@ class Game:
         # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
         if score_diff > 5000:
             return Bid(group, 0)
-        
-        # 상대방 히스토리 기반 베팅 금액 계산
-        amount = self._calculate_bid_amount(utility_a, utility_b, score_diff)
-        
-        return Bid(group, max(0, min(100000, int(amount))))
-
-    def get_dynamic_sacrifice_priority(self) -> List[DiceRule]:
-        ### 현재 상황에 따른 동적 우선순위 계산 (개선됨) ###
-        priorities = []
-        
-        # 기본 점수 규칙들 (ONE~SIX)
-        basic_rules = [DiceRule.ONE, DiceRule.TWO, DiceRule.THREE, 
-                       DiceRule.FOUR, DiceRule.FIVE, DiceRule.SIX]
-        
-        # 현재 기본 점수 계산
-        current_basic = sum(s for i, s in enumerate(self.my_state.rule_score) if s and i <= 5)
-        
-        # 보너스 점수(35000)를 고려한 우선순위 (강화됨)
-        if current_basic < 63000:
-            # 보너스를 얻을 수 있다면 기본 규칙을 절대 버리지 않음
-            available_basic = [r for r in basic_rules if self.my_state.rule_score[r.value] is None]
-            if available_basic:
-                # 기본 규칙을 우선적으로 보존
-                priorities.extend(available_basic)
-            
-            # 조합 규칙들 (높은 점수 순, 보너스 획득 전에는 신중하게)
-            combination_rules = [
-                DiceRule.SMALL_STRAIGHT, DiceRule.FOUR_OF_A_KIND, 
-                DiceRule.FULL_HOUSE, DiceRule.LARGE_STRAIGHT, DiceRule.YACHT
-            ]
-            priorities.extend([r for r in combination_rules if self.my_state.rule_score[r.value] is None])
         else:
-            # 보너스를 이미 얻었다면 기본 규칙을 먼저 버림
-            priorities.extend([r for r in basic_rules if self.my_state.rule_score[r.value] is None])
-            
-            # 조합 규칙들 (높은 점수 순)
-            combination_rules = [
-                DiceRule.SMALL_STRAIGHT, DiceRule.FOUR_OF_A_KIND, 
-                DiceRule.FULL_HOUSE, DiceRule.LARGE_STRAIGHT, DiceRule.YACHT
-            ]
-            priorities.extend([r for r in combination_rules if self.my_state.rule_score[r.value] is None])
+            # 상대방 히스토리 기반 베팅 금액 계산
+            if self.opp_bid_history:
+                # 상대방 베팅 히스토리 분석
+                max_opp_bid = 1 if max(self.opp_bid_history) == 0 else max(self.opp_bid_history)
+                sorted_bids = sorted(self.opp_bid_history, reverse=True)
+                top_3_avg = 1 if sum(sorted_bids[:3]) / min(3, len(sorted_bids)) == 0 else sum(sorted_bids[:3]) / min(3, len(sorted_bids))
+                avg_opp_bid = 1 if sum(self.opp_bid_history) / len(self.opp_bid_history) == 0 else sum(self.opp_bid_history) / len(self.opp_bid_history)
+
+                # 점수에 따른 베팅 전략
+                if score >= 50000:  # Yacht - 가장 공격적
+                    amount = int(max_opp_bid * 1.2)  # 최대 베팅의 1.2배
+                elif score >= 30000:  # Large Straight - 매우 공격적
+                    amount = int(top_3_avg * 1.1)  # 상위 3개 평균의 1.1배
+                elif score >= 15000:  # Small Straight - 공격적
+                    amount = int(top_3_avg * 1.05)  # 상위 3개 평균의 1.05배
+                elif score >= 10000:  # 높은 기본 점수 - 적당히 공격적
+                    amount = int(avg_opp_bid * 1.1)  # 평균 베팅의 1.1배
+                else:
+                    amount = int(avg_opp_bid * 0.5)  # 평균 베팅의 0.5배
+            else:
+                amount = 0
         
-        return priorities
+        return Bid(group, amount)
     """
 
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
@@ -244,7 +175,7 @@ class Game:
 
         for dice_combination in combinations(dice_pool, num_to_pick):
             dice_list = list(dice_combination)
-            best_rule, _, utility = self._calculate_best_put_for_dice(dice_list, self.my_state)
+            best_rule, _, utility = self.calculate_best_put(dice_list, self.my_state)
             if utility > max_utility:
                 max_utility = utility
                 best_put = [DicePut(best_rule, dice_list)]
@@ -253,25 +184,26 @@ class Game:
 
         if len(best_put) == 0 or max_utility <= LOW_UTILITY:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
-            importance = self.get_importance_of_numbers()
+            self.update_importance_of_numbers()
             # 중요도가 낮은 순으로 5개 선택
-            dice_to_sacrifice = sorted(self.my_state.dice, key=lambda d: importance[d - 1])[:5]
+            dice_to_sacrifice = sorted(self.my_state.dice, key=lambda d: W_NUMBERS[d - 1])[:5]
             return DicePut(rule_to_sacrifice, dice_to_sacrifice)
 
         if len(best_put) == 1:
             return best_put[0]
         
         # 여러 후보 중 중요도 합이 가장 낮은 것을 선택
-        importance = self.get_importance_of_numbers()
+        self.update_importance_of_numbers()
         def importance_sum(dice_list):
-            return sum(importance[val - 1] for val in dice_list)
+            return sum(W_NUMBERS[val - 1] for val in dice_list)
         best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
         return best_put[0]
     # ============================== [필수 구현 끝] ==============================
 
-    def get_importance_of_numbers(self) -> List[int]:
+    # W_NUMBERS를 계산하는 내부 함수
+    def update_importance_of_numbers(self) -> None:
         _rule_score = self.my_state.rule_score
-        _dice_count = [self.my_state.dice.count(i) for i in range(6)]
+        _dice_count = [self.my_state.dice.count(i) for i in range(1, 7)]
 
         # 현재 보유 중인 숫자가 많은 경우에는 최대한 사용하지 않도록 함
         for num in range(6):
@@ -284,9 +216,12 @@ class Game:
             else:
                 W_NUMBERS[num] *= W_NOT_IMPORTANT
 
-        return W_NUMBERS
+    # utility를 계산하는 내부 함수
+    def get_utility_of_rules(self, score: int, rule: DiceRule) -> float:
+        pass
 
-    def _calculate_best_put_for_dice(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], int, float]:
+    # 가중치를 이용해 제일 좋은 put을 반환하는 Wrapper 함수
+    def calculate_best_put(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], int, float]:
         best_rule, best_score, max_utility = None, -1, -1.0
         
         all_rules = list(DiceRule)
@@ -359,6 +294,8 @@ class Game:
                 utility = self._apply_strategy(rule, score, dice, utility, state)
                 
                 # 4. 미래 가치를 위해 현재 규칙을 아껴두는 'Saving' 전략
+                # TODO
+                # 이거 필요없는거 아님???
                 remaining_dice = [d for d in state.dice if d not in dice]
                 if len(remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
                     from collections import Counter
