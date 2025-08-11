@@ -31,10 +31,10 @@ class DiceRule(Enum):
 
 # 각 규칙의 평균 기대 점수 (참고용)
 AVERAGE_SCORES = {
-    DiceRule.ONE: 1880, DiceRule.TWO: 5280, DiceRule.THREE: 8570,
-    DiceRule.FOUR: 12160, DiceRule.FIVE: 15690, DiceRule.SIX: 19190,
-    DiceRule.CHOICE: 22000, DiceRule.FOUR_OF_A_KIND: 13100, DiceRule.FULL_HOUSE: 22590,
-    DiceRule.SMALL_STRAIGHT: 15000, DiceRule.LARGE_STRAIGHT: 30000, DiceRule.YACHT: 17000,
+    DiceRule.ONE: 2880, DiceRule.TWO: 7280, DiceRule.THREE: 11570,
+    DiceRule.FOUR: 16160, DiceRule.FIVE: 20690, DiceRule.SIX: 25190,
+    DiceRule.CHOICE: 27000, DiceRule.FOUR_OF_A_KIND: 17100, DiceRule.FULL_HOUSE: 22590,
+    DiceRule.SMALL_STRAIGHT: 15000, DiceRule.LARGE_STRAIGHT: 30000, DiceRule.YACHT: 50000,
 }
 
 # 점수를 버려야 할 때의 희생 우선순위
@@ -74,25 +74,24 @@ W_BAD_CHOICE = 0.7
 
 # 숫자의 중요도
 # NOTE: 일단 합연산으로 구현은 했으나, 이렇게 구현해도 괜찮을지 고민 필요
-W_UP_IMPORTANT = 0.1      # +10%
-W_DOWN_IMPORTANT = -0.1   # -10%
-W_VERY_IMPORTANT = 0.2    # +20%
-W_NOT_IMPORTANT = -0.2    # -20%
+W_UP_IMPORTANT = 0.01     
+W_DOWN_IMPORTANT = -0.01   
+W_VERY_IMPORTANT = W_UP_IMPORTANT * 3
+W_NOT_IMPORTANT = W_DOWN_IMPORTANT * 3
 W_NUMBERS_INIT = [
-    1.0,   # 1
-    1.1,   # 2
-    1.2,   # 3
-    1.4,   # 4
-    1.6,   # 5
-    1.8    # 6
+    1.00,   # 1
+    1.01,   # 2
+    1.02,   # 3
+    1.04,   # 4
+    1.06,   # 5
+    1.08    # 6
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
 LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
-SCORE_GOOD_CHOICE = 22    # W_NICE_CHOICE를 적용할 임계 점수
-SCORE_HIGH_FULLHOUSE = 18 # Full House가 좋은 선택일지 정하는 임계 점수
-SCORE_HIGH_FOK = 15       # Four of Kind가 좋은 선택일지 정하는 임계 점수
+SCORE_GOOD_CHOICE = 27    # W_NICE_CHOICE를 적용할 임계 점수
+SCORE_HIGH_FULLHOUSE = 22 # Full House가 좋은 선택일지 정하는 임계 점수
+SCORE_HIGH_FOK = 18       # Four of Kind가 좋은 선택일지 정하는 임계 점수
 NR_END_GAME = 2           # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
-NR_BUFFERING_1 = 1        # 1을 버퍼로 남겨두기 위해 필요한 Rule 개수의 임계값
 
 # ==================================================================== #
 
@@ -118,8 +117,8 @@ class Game:
         self.round = 0
         # 상대방 베팅 히스토리 (최근 10개만 유지)
         self.opp_bid_history = []
-        # 숫자의 중요도
-        self.W_NUMBERS = []
+        # 라운드 별 숫자의 중요도
+        self.W_NUMBERS_ROUND = []
 
     # ================================ [필수 구현] ================================
 
@@ -146,7 +145,7 @@ class Game:
         score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
 
         # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
-        if score_diff > 5000:
+        if score_diff < 0:
             return Bid(group, 0)
         else:
             # 상대방 히스토리 기반 베팅 금액 계산
@@ -195,45 +194,58 @@ class Game:
             if current_weight > max_weight:
                 max_weight = current_weight
                 best_put = [DicePut(best_rule, dice_list)]
-            elif current_weight == max_weight:
+            elif len(best_put) > 0 and current_weight == max_weight:
                 best_put.append(DicePut(best_rule, dice_list))
 
-        print(f"{self.round}R - max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
+        # print(f"{self.round}R - max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
 
         # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
         #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
         if len(best_put) == 0 or max_weight <= LOW_UTILITY:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
-            # TODO: dice_list를 사용하면 안됨. 변경 필요
-            self.update_importance_of_numbers(dice_list, self.my_state) 
-            # 중요도가 낮은 순으로 5개 선택
-            dice_to_sacrifice = sorted(self.my_state.dice, key=lambda d: self.W_NUMBERS[d - 1])[:5]
+
+            # 희생 다이스 계산
+            dice_to_sacrifice = self.get_victim_dices(dice_pool, num_to_pick, rule_to_sacrifice)
             return DicePut(rule_to_sacrifice, dice_to_sacrifice)
 
-        if len(best_put) == 1:
+        # best_put이 단일 후보인 경우
+        elif len(best_put) == 1:
             return best_put[0]
         
-        # 여러 후보 중 중요도 합이 가장 낮은 것을 선택
-        # TODO: dice_list를 사용하면 안됨. 변경 필요
-        self.update_importance_of_numbers(dice_list, self.my_state)
-        def importance_sum(dice_list):
-            return sum(self.W_NUMBERS[val - 1] for val in dice_list)
-        best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
-        return best_put[0]
+        # best_put의 여러 후보 중 중요도 합이 가장 낮은 것을 선택
+        # NOTE: 생각해보니 여기도 dice_pool을 사용해서
+        #       전체 dice 리스트에 대한 숫자의 중요도를 계산하면 되는거였음!
+        else:
+            W_NUMBERS = self.get_importance_of_numbers(dice_pool, self.my_state)
+            def importance_sum(dice_list):
+                return sum(W_NUMBERS[val - 1] for val in dice_list)
+            best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
+            return best_put[0]
     
     # ============================== [필수 구현 끝] ==============================
 
     def initialize_importance(self):
-        # W_NUMBERS는 라운드가 넘어갈 때마다 초기화
-        self.W_NUMBERS = list(W_NUMBERS_INIT)
+        # W_NUMBERS_ROUND는 라운드가 넘어갈 때마다 초기화
+        self.W_NUMBERS_ROUND = list(W_NUMBERS_INIT)
+
+    # 라운드 별 W_NUMBERS 리스트의 값을 변경하는 함수
+    # NOTE: 현재 중요도 구조 상 사용되지 않으나,
+    #       추후, 사용될 수 있기에 삭제하지 않음.
+    def update_importance_of_numbers(self, modified: List[int]) -> None:
+        assert (modified is not None) and (len(modified) == 6)
+
+        self.W_NUMBERS_ROUND = list(modified)
 
     # W_NUMBERS를 계산하는 함수
     # W_NUMBER 값들은 합연산으로 계산
-    def update_importance_of_numbers(self, dice: List[int], state: 'GameState') -> None:
+    def get_importance_of_numbers(self, dice: List[int], state: 'GameState') -> list[float]:
         # * 가중치 올림 -> 선택할 가능성 증가, 버릴 가능성 감소
         # * 가중치 내림 -> 선택할 가능성 감소, 버릴 가능성 증가
 
-        print(f"{self.round}R - 현재 importance: {self.W_NUMBERS}", file=sys.stderr) # 디버깅 용도
+        # 숫자의 중요도
+        W_NUMBERS = list(self.W_NUMBERS_ROUND)
+
+        # print(f"{self.round}R - 현재 importance: {W_NUMBERS}", file=sys.stderr) # 디버깅 용도
 
         # 기본 규칙 중 사용하지 않은 숫자는 많은만큼 가중치 올림
         # 반대로 사용한 숫자는 가중치 내림
@@ -241,9 +253,9 @@ class Game:
         for number in range(1, 7):
             num_idx = number - 1
             if state.rule_score[num_idx] is None:
-                self.W_NUMBERS[num_idx] += (W_UP_IMPORTANT * _dice_count[num_idx])
+                W_NUMBERS[num_idx] += (W_UP_IMPORTANT * _dice_count[num_idx])
             else:
-                self.W_NUMBERS[num_idx] += (W_DOWN_IMPORTANT * _dice_count[num_idx])
+                W_NUMBERS[num_idx] += (W_DOWN_IMPORTANT * _dice_count[num_idx])
 
         # Yacht와 Straight 규칙 확인
         # 규칙이 실현된 가능성이 높은 경우 버리거나 사용하지 않도록 가중치 올림
@@ -256,7 +268,7 @@ class Game:
             
                 # 남은 주사위에 같은 숫자가 4개 이상이면, 다음 턴 Yacht를 기대
                 if nr_common_number >= 4:
-                    self.W_NUMBERS[common_number - 1] += W_UP_IMPORTANT
+                    W_NUMBERS[common_number - 1] += W_VERY_IMPORTANT
             
             # 2. Straight
             if state.rule_score[DiceRule.LARGE_STRAIGHT.value] is None and \
@@ -277,9 +289,44 @@ class Game:
                             
                     if has_potential:
                         for continuos_number in unique_remaining:
-                            self.W_NUMBERS[continuos_number - 1] += W_UP_IMPORTANT
+                            W_NUMBERS[continuos_number - 1] += W_VERY_IMPORTANT
 
         # NOTE: 중요도에 영향을 줄만한 상황이 있다면, 추가 필요
+
+        return W_NUMBERS
+    
+    # 규칙 희생이 발생할 때, 희생 규칙에 따른
+    # 숫자의 중요도를 계산하여 반환하는 Wrapper 함수
+    def get_victim_dices(self, dice: List[int], num_to_pick: int, sacrifice: DiceRule) -> List[int]:
+        assert self.my_state.rule_score[sacrifice.value] is None
+
+        # 1라운드 또는 13라운드인 경우 남은 다이스를 반환
+        if len(dice) <= 5:
+            return sorted(dice)
+
+        # 희생할 규칙을 사용한 규칙으로 보고 중요도를 계산할 수 있도록
+        # 임시로 None이 아닌 값으로 변경
+        self.my_state.rule_score[sacrifice.value] = 0
+
+        victim_list = []
+        for _ in range(num_to_pick):
+            remaining_dices = [d for d in dice if d not in victim_list]
+            W_NUMBERS = self.get_importance_of_numbers(remaining_dices, self.my_state)
+
+            min_importance, victim_dice = sys.maxsize, -1
+            for number in remaining_dices:
+                num_idx = number - 1
+                if W_NUMBERS[num_idx] < min_importance:
+                    min_importance = W_NUMBERS[num_idx]
+                    victim_dice = number
+
+            assert victim_dice != -1
+            victim_list.append(victim_dice)
+        
+        # state의 rule_score를 변경하는 것은 이 함수의
+        # 역할이 아니므로, 다시 None 값으로 설정
+        self.my_state.rule_score[sacrifice.value] = None
+        return sorted(victim_list)
 
     # utility를 계산하는 내부 함수
     # utility는 곱연산으로 계산
@@ -353,15 +400,12 @@ class Game:
         return utility
 
     # 현재 상황과 가중치를 고려하여 제일 좋은 put을 반환하는 Wrapper 함수
-    def calculate_best_put(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], float, bool]:
+    def calculate_best_put(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], float]:
         best_rule, max_weight = None, -1.0
         
         all_rules = list(DiceRule)
-        # TODO: 일단은 점수 계산의 중요도 업데이트를 여기에 넣어 놓기는 했는데,
-        #       이게 로깅을 찍어보면 결국 모든 조합에 대해 가중치가 다시 계산되어서
-        #       맞는 방법인지 조금 의문이 듦. 따라서, 가중치를 업데이트 하는 시점과
-        #       가중치 변수를 업데이트하는 구조를 고민해볼 필요가 있음.
-        self.update_importance_of_numbers(dice, state)
+        current_numbers = self.get_importance_of_numbers(dice, state)
+        current_importance = sum(current_numbers)
 
         # 모든 규칙에 대해 점수를 계산
         for rule in all_rules:
@@ -372,9 +416,9 @@ class Game:
                     continue
                 
                 basic_score = sum(s for i, s in enumerate(state.rule_score) if s and i <= 5)
-                # Bonus를 획득하지 않은 경우 importance를 사용
-                if basic_score < 63000:
-                    importance = sum(self.W_NUMBERS)
+                # Bonus를 획득하지 않은 경우 기본 규칙에 importance를 사용
+                if basic_score < 63000 and rule.value <= 5:
+                    importance = current_importance
                 else:
                     importance = 1
                 
