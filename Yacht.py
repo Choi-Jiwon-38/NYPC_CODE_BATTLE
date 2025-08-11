@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from itertools import combinations
 from collections import Counter
+from random import choice
 
 import sys
 
@@ -62,16 +63,14 @@ SACRIFICE_PRIORITY = [
 # 가중치 상수들
 # 가중치 조정할 때 숫자를 변경하여 조절할 것!
 
-W_YACHT = 3.0
-W_LARGE_STRAIGHT = 2.3
-W_SMALL_STRAIGHT = 1.8
-W_DEMOTION = 0.3
-W_HIGH_PROMOTION = 2.5
-W_LOW_PROMOTION = 1.5
-W_NICE_CHOICE = 1.7
-W_BAD_CHOICE = 0.5
-W_BASIC = 0.3
-W_SAVING = 0.7
+W_YACHT = 2.0
+W_LARGE_STRAIGHT = 1.5
+W_SMALL_STRAIGHT = 1.3
+W_DEMOTION = 0.5
+W_HIGH_PROMOTION = 1.2
+W_LOW_PROMOTION = 1.1
+W_NICE_CHOICE = 1.25
+W_BAD_CHOICE = 0.7
 
 # 숫자의 중요도
 # NOTE: 일단 합연산으로 구현은 했으나, 이렇게 구현해도 괜찮을지 고민 필요
@@ -81,11 +80,11 @@ W_VERY_IMPORTANT = 0.2    # +20%
 W_NOT_IMPORTANT = -0.2    # -20%
 W_NUMBERS_INIT = [
     1.0,   # 1
-    2.0,   # 2
-    3.0,   # 3
-    4.0,   # 4
-    5.0,   # 5
-    6.0    # 6
+    1.1,   # 2
+    1.2,   # 3
+    1.4,   # 4
+    1.6,   # 5
+    1.8    # 6
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
 LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
@@ -126,18 +125,22 @@ class Game:
 
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
         # 각 주사위 묶음의 최대 기대 효율(utility)을 계산
-        # NOTE: 이거 calculate_best_put 함수를 바꾸면서 같이 바꾸었는데
-        #       경매 전략 안 바꿀꺼면 제대로 변경되었는지 한번 더 확인이 필요할 수 있음
-        #       P.S. 왜 score 계산을 dice_a만 하는거지? 기존 함수도 dice_a의 score로 사용했음
-        rule, weight_a = self.calculate_best_put(dice_a, self.my_state)
-        _, weight_b = self.calculate_best_put(dice_b, self.my_state)
-        if rule is not None:
-            score = GameState.calculate_score(DicePut(rule, dice_a))
-        else:
-            score = 0
+        rule_a, weight_a = self.calculate_best_put(dice_a, self.my_state)
+        rule_b, weight_b = self.calculate_best_put(dice_b, self.my_state)
 
         # 더 높은 효율을 가진 그룹에 입찰
-        group = "A" if weight_a > weight_b else "B"
+        if rule_a is not None and weight_a > weight_b:
+            group = "A"
+            score = GameState.calculate_score(DicePut(rule_a, dice_a))
+        elif rule_b is not None:
+            group = "B"
+            score = GameState.calculate_score(DicePut(rule_b, dice_b))
+        else:
+            # dice_a, dice_b들의 score가 0이면, 무작위로 선택
+            # NOTE: 이거 무작위로 선택하게 되면 최종 점수가 랜덤성이 생김
+            #       단순하게 A나 B로 선택하게 하는 것도 나쁘지 않을듯
+            group = choice(["A", "B"])
+            score = 0
         
         # 보수적인 입찰 금액 산정
         score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
@@ -217,6 +220,7 @@ class Game:
             return sum(self.W_NUMBERS[val - 1] for val in dice_list)
         best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
         return best_put[0]
+    
     # ============================== [필수 구현 끝] ==============================
 
     def initialize_importance(self):
@@ -301,17 +305,13 @@ class Game:
             dice_number = rule.value + 1
             count_of_number = dice.count(dice_number)
 
-            # 우선순위 2번: 4, 5, 6이 3개 이상일 때만 높은 가치를 부여
-            # FOUR 규칙은 4개 이상일 때만 높은 가중치 적용
-            if dice_number == 4:
-                if count_of_number >= 4:
-                    utility *= W_HIGH_PROMOTION
-                else:
-                    utility *= W_DEMOTION
-                    
-            # FIVE와 SIX 규칙은 3개 이상일 때만 높은 가중치 적용
-            elif dice_number in [5, 6]:
-                if count_of_number >= 3:
+            # 우선순위 2번: FOUR, FIVE, SIX
+            # 4개 이상이면 큰 가중치를, 5개 이상이면 매우 큰 가중치 적용
+            # NOTE: 이거 1, 2, 3에도 적용해도 될 것 같은데
+            if dice_number in [4, 5, 6]:
+                if count_of_number == 5:
+                    utility *= W_YACHT
+                elif count_of_number >= 4:
                     utility *= W_HIGH_PROMOTION
                 else:
                     utility *= W_DEMOTION
