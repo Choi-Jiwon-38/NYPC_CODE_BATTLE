@@ -33,7 +33,7 @@ class DiceRule(Enum):
 AVERAGE_SCORES = {
     DiceRule.ONE: 1880, DiceRule.TWO: 5280, DiceRule.THREE: 8570,
     DiceRule.FOUR: 12160, DiceRule.FIVE: 15690, DiceRule.SIX: 19190,
-    DiceRule.CHOICE: 22000, DiceRule.FOUR_OF_A_KIND: 13100, DiceRule.FULL_HOUSE: 22590,
+    DiceRule.CHOICE: 24000, DiceRule.FOUR_OF_A_KIND: 23500, DiceRule.FULL_HOUSE: 22590,
     DiceRule.SMALL_STRAIGHT: 15000, DiceRule.LARGE_STRAIGHT: 30000, DiceRule.YACHT: 17000,
 }
 
@@ -69,7 +69,7 @@ W_SMALL_STRAIGHT = 1.3
 W_DEMOTION = 0.5
 W_HIGH_PROMOTION = 1.2
 W_LOW_PROMOTION = 1.1
-W_NICE_CHOICE = 1.25
+W_NICE_CHOICE = 1.15
 W_BAD_CHOICE = 0.7
 
 # 숫자의 중요도
@@ -88,7 +88,7 @@ W_NUMBERS_INIT = [
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
 LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
-SCORE_GOOD_CHOICE = 22    # W_NICE_CHOICE를 적용할 임계 점수
+SCORE_GOOD_CHOICE = 24    # W_NICE_CHOICE를 적용할 임계 점수
 SCORE_HIGH_FULLHOUSE = 18 # Full House가 좋은 선택일지 정하는 임계 점수
 SCORE_HIGH_FOK = 15       # Four of Kind가 좋은 선택일지 정하는 임계 점수
 NR_END_GAME = 2           # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
@@ -145,6 +145,7 @@ class Game:
         # 보수적인 입찰 금액 산정
         score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
 
+        # TODO: 승기를 잡고있다는 기준을 현재 점수가 아닌 기대 점수에 따른 방향으로 변경해야함.
         # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
         if score_diff > 5000:
             return Bid(group, 0)
@@ -247,6 +248,7 @@ class Game:
 
         # Yacht와 Straight 규칙 확인
         # 규칙이 실현된 가능성이 높은 경우 버리거나 사용하지 않도록 가중치 올림
+        # NOTE: 이거 뭐임???? 아래 코드대로면 남은 주사위가 5개 이상이 아니라 그냥 같은 숫자면 전부 빼버리는데??
         _remaining_dice = [d for d in state.dice if d not in dice]
         if len(_remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
             # 1. Yacht
