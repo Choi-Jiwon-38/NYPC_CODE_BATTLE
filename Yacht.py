@@ -123,9 +123,16 @@ class Game:
     # ================================ [필수 구현] ================================
 
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
+        print(f"{self.round}R -> {dice_a}, {dice_b}", file=sys.stderr)
         # 각 주사위 묶음의 최대 기대 효율(utility)을 계산
-        rule_a, weight_a = self.calculate_best_put(dice_a, self.my_state)
-        rule_b, weight_b = self.calculate_best_put(dice_b, self.my_state)
+        # 12 라운드인 경우 단순 최대합으로 계산
+        remaining_rules = sum(1 for s in self.my_state.rule_score if s is None)
+        if remaining_rules <= 2:
+            rule_a, weight_a = self.calculate_end_game(dice_a, self.my_state)
+            rule_b, weight_b = self.calculate_end_game(dice_b, self.my_state)
+        else:
+            rule_a, weight_a = self.calculate_best_put(dice_a, self.my_state)
+            rule_b, weight_b = self.calculate_best_put(dice_b, self.my_state)
 
         # 더 높은 효율을 가진 그룹에 입찰
         if rule_a is not None and weight_a > weight_b:
@@ -182,41 +189,56 @@ class Game:
         if num_to_pick == 0:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
             return DicePut(rule_to_sacrifice, [])
-
-        # 모든 조합에 대해 max_weight인 조합을 선별
-        for dice_combination in combinations(dice_pool, num_to_pick):
-            dice_list = list(dice_combination)
-            best_rule, current_weight = self.calculate_best_put(dice_list, self.my_state)
-            if current_weight > max_weight:
-                max_weight = current_weight
-                best_put = [DicePut(best_rule, dice_list)]
-            elif len(best_put) > 0 and current_weight == max_weight:
-                best_put.append(DicePut(best_rule, dice_list))
-
-        # print(f"{self.round}R - max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
-
-        # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
-        #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
-        if len(best_put) == 0 or max_weight <= LOW_UTILITY:
-            rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
-
-            # 희생 다이스 계산
-            dice_to_sacrifice = self.get_victim_dices(dice_pool, num_to_pick, rule_to_sacrifice)
-            return DicePut(rule_to_sacrifice, dice_to_sacrifice)
-
-        # best_put이 단일 후보인 경우
-        elif len(best_put) == 1:
-            return best_put[0]
         
-        # best_put의 여러 후보 중 중요도 합이 가장 낮은 것을 선택
-        # NOTE: 생각해보니 여기도 dice_pool을 사용해서
-        #       전체 dice 리스트에 대한 숫자의 중요도를 계산하면 되는거였음!
+        # 규칙이 2개 남은 경우 가중치를 계산하지 않고, 남은 주사위로 
+        # 12, 13 라운드에서 가장 큰 점수를 얻을 수 있는 조합을 선별하여 반환.
+        remaining_rules = sum(1 for s in self.my_state.rule_score if s is None)
+        if remaining_rules <= 2:
+            max_score = -1
+            for dice_combination in combinations(dice_pool, num_to_pick):
+                current_rule, current_score = self.calculate_end_game(list(dice_combination), self.my_state)
+
+                if current_score > max_score:
+                    best_put = list(dice_combination)
+                    best_rule, max_score = current_rule, current_score
+            
+            return DicePut(best_rule, best_put)
+
         else:
-            W_NUMBERS = self.get_importance_of_numbers(dice_pool, self.my_state)
-            def importance_sum(dice_list):
-                return sum(W_NUMBERS[val - 1] for val in dice_list)
-            best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
-            return best_put[0]
+            # 모든 조합에 대해 max_weight인 조합을 선별
+            for dice_combination in combinations(dice_pool, num_to_pick):
+                dice_list = list(dice_combination)
+                best_rule, current_weight = self.calculate_best_put(dice_list, self.my_state)
+                if current_weight > max_weight:
+                    max_weight = current_weight
+                    best_put = [DicePut(best_rule, dice_list)]
+                elif len(best_put) > 0 and current_weight == max_weight:
+                    best_put.append(DicePut(best_rule, dice_list))
+
+            # print(f"{self.round}R - max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
+
+            # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
+            #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
+            if len(best_put) == 0 or max_weight <= LOW_UTILITY:
+                rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
+
+                # 희생 다이스 계산
+                dice_to_sacrifice = self.get_victim_dices(dice_pool, num_to_pick, rule_to_sacrifice)
+                return DicePut(rule_to_sacrifice, dice_to_sacrifice)
+
+            # best_put이 단일 후보인 경우
+            elif len(best_put) == 1:
+                return best_put[0]
+            
+            # best_put의 여러 후보 중 중요도 합이 가장 낮은 것을 선택
+            # NOTE: 생각해보니 여기도 dice_pool을 사용해서
+            #       전체 dice 리스트에 대한 숫자의 중요도를 계산하면 되는거였음!
+            else:
+                W_NUMBERS = self.get_importance_of_numbers(dice_pool, self.my_state)
+                def importance_sum(dice_list):
+                    return sum(W_NUMBERS[val - 1] for val in dice_list)
+                best_put.sort(key=lambda put: (importance_sum(put.dice), sum(put.dice)))
+                return best_put[0]
     
     # ============================== [필수 구현 끝] ==============================
 
@@ -300,7 +322,7 @@ class Game:
     def get_victim_dices(self, dice: List[int], num_to_pick: int, sacrifice: DiceRule) -> List[int]:
         assert self.my_state.rule_score[sacrifice.value] is None
 
-        # 1라운드 또는 13라운드인 경우 남은 다이스를 반환
+        # 1라운드인 경우 남은 다이스를 반환
         if len(dice) <= 5:
             return sorted(dice)
 
@@ -402,6 +424,35 @@ class Game:
                     utility *= W_BAD_CHOICE
 
         return utility
+
+    # 10개의 다이스 중 5:5로 나누었을 때의 점수 합을 반환하는 함수
+    def calculate_end_game(self, dice: List[int], state: 'GameState') -> Tuple[DiceRule, int]:
+        all_rules = []
+        for rule in list(DiceRule):
+            if state.rule_score[rule.value] is None:
+                all_rules.append(rule)
+        
+        # 13라운드인 경우 남은 다이스의 점수를 반환
+        if len(all_rules) == 1:
+            return all_rules[0], state.calculate_score(DicePut(all_rules[0], dice))
+        else:
+            assert len(all_rules) == 2
+
+        rule_a, rule_b = all_rules[0], all_rules[1]
+        remaining_dice = list(state.dice) 
+        for d in dice:
+            if d in remaining_dice:
+                remaining_dice.remove(d)
+        
+        score_a = state.calculate_score(DicePut(rule_a, dice)) \
+              + state.calculate_score(DicePut(rule_b, remaining_dice))
+        score_b = state.calculate_score(DicePut(rule_b, dice)) \
+              + state.calculate_score(DicePut(rule_a, remaining_dice))
+
+        if score_a >= score_b:
+            return rule_a, score_a
+        else:
+            return rule_b, score_b
 
     # 현재 상황과 가중치를 고려하여 제일 좋은 put을 반환하는 Wrapper 함수
     def calculate_best_put(self, dice: List[int], state: 'GameState') -> Tuple[Optional[DiceRule], float]:
