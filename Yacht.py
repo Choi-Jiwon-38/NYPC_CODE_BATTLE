@@ -123,17 +123,36 @@ class Game:
     # ================================ [필수 구현] ================================
 
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
-        print(f"{self.round}R -> {dice_a}, {dice_b}", file=sys.stderr)
-        # 각 주사위 묶음의 최대 기대 효율(utility)을 계산
-        # 12 라운드인 경우 단순 최대합으로 계산
+        num_to_pick = 5
+        group_a, group_b = dice_a + self.my_state.dice, dice_b + self.my_state.dice
         remaining_rules = sum(1 for s in self.my_state.rule_score if s is None)
+        
+        # 12 라운드인 경우 점수의 최대합으로 계산
+        tmp_rule_a, tmp_rule_b = None, None
         if remaining_rules <= 2:
-            rule_a, weight_a = self.calculate_end_game(dice_a, self.my_state)
-            rule_b, weight_b = self.calculate_end_game(dice_b, self.my_state)
+            weight_a, weight_b = -1, -1
+            tmp_weight_a, tmp_weight_b = -1, -1
+            for dice_combination in combinations(group_a, num_to_pick):
+                tmp_rule_a, tmp_weight_a = self.calculate_end_game(list(dice_combination), self.my_state)
+                if tmp_weight_a > weight_a:
+                    rule_a, weight_a = tmp_rule_a, tmp_weight_a
+            for dice_combination in combinations(group_b, num_to_pick):
+                tmp_rule_b, tmp_weight_b = self.calculate_end_game(list(dice_combination), self.my_state)
+                if tmp_weight_b > weight_b:
+                    rule_b, weight_b = tmp_rule_b, tmp_weight_b
+        # 각 주사위 묶음의 최대 기대 가중치를 계산
         else:
-            rule_a, weight_a = self.calculate_best_put(dice_a, self.my_state)
-            rule_b, weight_b = self.calculate_best_put(dice_b, self.my_state)
-
+            weight_a, weight_b = -1.0, -1.0
+            tmp_weight_a, tmp_weight_a = -1.0, -1.0
+            for dice_combination in combinations(group_a, num_to_pick):
+                tmp_rule_a, tmp_weight_a = self.calculate_best_put(list(dice_combination), self.my_state)
+                if tmp_weight_a > weight_a:
+                    rule_a, weight_a = tmp_rule_a, tmp_weight_a
+            for dice_combination in combinations(group_b, num_to_pick):
+                tmp_rule_b, tmp_weight_b = self.calculate_best_put(list(dice_combination), self.my_state)
+                if tmp_weight_b > weight_b:
+                    rule_b, weight_b = tmp_rule_b, tmp_weight_b
+            
         # 더 높은 효율을 가진 그룹에 입찰
         if rule_a is not None and weight_a > weight_b:
             group = "A"
@@ -153,7 +172,7 @@ class Game:
 
         # TODO: 승기를 잡고있다는 기준을 현재 점수가 아닌 기대 점수에 따른 방향으로 변경해야함.
         # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
-        if score_diff < 0:
+        if False:
             return Bid(group, 0)
         else:
             # 상대방 히스토리 기반 베팅 금액 계산
@@ -197,7 +216,6 @@ class Game:
             max_score = -1
             for dice_combination in combinations(dice_pool, num_to_pick):
                 current_rule, current_score = self.calculate_end_game(list(dice_combination), self.my_state)
-
                 if current_score > max_score:
                     best_put = list(dice_combination)
                     best_rule, max_score = current_rule, current_score
