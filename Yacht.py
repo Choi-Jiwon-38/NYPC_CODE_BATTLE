@@ -248,8 +248,10 @@ class Game:
 
         # Yacht와 Straight 규칙 확인
         # 규칙이 실현된 가능성이 높은 경우 버리거나 사용하지 않도록 가중치 올림
-        # NOTE: 이거 뭐임???? 아래 코드대로면 남은 주사위가 5개 이상이 아니라 그냥 같은 숫자면 전부 빼버리는데??
-        _remaining_dice = [d for d in state.dice if d not in dice]
+        _remaining_dice = list(state.dice) 
+        for d in dice:
+            if d in _remaining_dice:
+                _remaining_dice.remove(d)
         if len(_remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
             # 1. Yacht
             if state.rule_score[DiceRule.YACHT.value] is None:
