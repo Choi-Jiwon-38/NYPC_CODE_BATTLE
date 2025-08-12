@@ -172,12 +172,7 @@ class Game:
                 amount = 0
         
         return Bid(group, amount)
-    """
-
-    def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
-        # 고정된 입찰 전략: 무조건 A를 선택하고 0원으로 베팅
-        return Bid("A", 0)
-    """
+    
     def calculate_put(self) -> DicePut:
         best_put = []
         max_weight = -1.0
@@ -264,6 +259,7 @@ class Game:
         for d in dice:
             if d in _remaining_dice:
                 _remaining_dice.remove(d)
+
         if len(_remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
             # 1. Yacht
             if state.rule_score[DiceRule.YACHT.value] is None:
@@ -314,7 +310,11 @@ class Game:
 
         victim_list = []
         for _ in range(num_to_pick):
-            remaining_dices = [d for d in dice if d not in victim_list]
+            remaining_dices = list(dice) 
+            for d in victim_list:
+                if d in remaining_dices:
+                    remaining_dices.remove(d)
+            
             W_NUMBERS = self.get_importance_of_numbers(remaining_dices, self.my_state)
 
             min_importance, victim_dice = sys.maxsize, -1
