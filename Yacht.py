@@ -69,7 +69,7 @@ W_SMALL_STRAIGHT = 1.3
 W_DEMOTION = 0.5
 W_HIGH_PROMOTION = 1.2
 W_LOW_PROMOTION = 1.1
-W_NICE_CHOICE = 1.25
+W_NICE_CHOICE = 1.15
 W_BAD_CHOICE = 0.7
 
 # 숫자의 중요도
@@ -144,6 +144,7 @@ class Game:
         # 보수적인 입찰 금액 산정
         score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
 
+        # TODO: 승기를 잡고있다는 기준을 현재 점수가 아닌 기대 점수에 따른 방향으로 변경해야함.
         # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
         if score_diff < 0:
             return Bid(group, 0)
@@ -259,7 +260,10 @@ class Game:
 
         # Yacht와 Straight 규칙 확인
         # 규칙이 실현된 가능성이 높은 경우 버리거나 사용하지 않도록 가중치 올림
-        _remaining_dice = [d for d in state.dice if d not in dice]
+        _remaining_dice = list(state.dice) 
+        for d in dice:
+            if d in _remaining_dice:
+                _remaining_dice.remove(d)
         if len(_remaining_dice) >= 5: # 남아있는 주사위가 5개 이상일 때 (1라운드, 13라운드 제외)
             # 1. Yacht
             if state.rule_score[DiceRule.YACHT.value] is None:
