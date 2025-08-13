@@ -65,25 +65,25 @@ SACRIFICE_PRIORITY = [
 W_YACHT = 2.0
 W_LARGE_STRAIGHT = 1.5
 W_SMALL_STRAIGHT = 1.3
-W_DEMOTION = 0.5
+W_DEMOTION = 0.8
 W_HIGH_PROMOTION = 1.2
 W_LOW_PROMOTION = 1.1
 W_NICE_CHOICE = 1.15
-W_BAD_CHOICE = 0.7
+W_BAD_CHOICE = 0.9
 
 # 숫자의 중요도
 # NOTE: 일단 합연산으로 구현은 했으나, 이렇게 구현해도 괜찮을지 고민 필요
-W_UP_IMPORTANT = 0.01     
-W_DOWN_IMPORTANT = -0.01   
+W_UP_IMPORTANT = 0.2     
+W_DOWN_IMPORTANT = -0.2  
 W_VERY_IMPORTANT = W_UP_IMPORTANT * 3
 W_NOT_IMPORTANT = W_DOWN_IMPORTANT * 3
 W_NUMBERS_INIT = [
-    1.00,   # 1
-    1.01,   # 2
-    1.02,   # 3
-    1.04,   # 4
-    1.06,   # 5
-    1.08    # 6
+    1.0,   # 1
+    1.1,   # 2
+    1.3,   # 3
+    1.5,   # 4
+    1.8,   # 5
+    2.0    # 6
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
 LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
@@ -188,7 +188,7 @@ class Game:
             # 상대방 베팅 히스토리 분석
             max_opp_bid = 1 if max(self.opp_bid_history) == 0 else max(self.opp_bid_history)
             sorted_bids = sorted(self.opp_bid_history, reverse=True)
-            top_3_avg = 1 if sum(sorted_bids[:3]) / min(3, len(sorted_bids)) == 0 else sum(sorted_bids[:3]) / min(3, len(sorted_bids))
+            top_3_avg = 1 if sum(sorted_bids[1:4]) / min(3, len(sorted_bids)) == 0 else sum(sorted_bids[1:4]) / min(3, len(sorted_bids))
             avg_opp_bid = 1 if sum(self.opp_bid_history) / len(self.opp_bid_history) == 0 else sum(self.opp_bid_history) / len(self.opp_bid_history)
 
             # 점수에 따른 베팅 전략
@@ -409,7 +409,7 @@ class Game:
 
             # 우선순위 2번: FOUR, FIVE, SIX
             # 4개 이상이면 큰 가중치를, 5개 이상이면 매우 큰 가중치 적용
-            if dice_number in [4, 5, 6]:
+            if dice_number in [3, 4, 5, 6]:
                 if count_of_number == 5:
                     utility *= W_YACHT
                 elif count_of_number >= 4:
@@ -488,7 +488,7 @@ class Game:
         
         all_rules = list(DiceRule)
         current_numbers = self.get_importance_of_numbers(dice, state)
-        current_importance = sum(current_numbers)
+        current_importance = sum(current_numbers[dice_num - 1] for dice_num in dice) / 6
         print(f"\n{self.round}R, dice: {sorted(dice)}, importance: {current_numbers}", file=sys.stderr) # 디버깅
 
         # 모든 규칙에 대해 점수를 계산
@@ -508,7 +508,7 @@ class Game:
                 
                 tmp_utility = self._get_utility_of_rules(score, rule, dice, state)
                 utility = (tmp_utility * importance)
-                print(f"{self.round}R, score: {sum(1 for s in self.my_state.rule_score if s is None)}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
+                print(f"{self.round}R, score: {score // 1000}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
 
                 if utility > max_weight:
                     max_weight, best_rule = utility, rule
