@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from itertools import combinations
 from collections import Counter
-from random import choice
 
 import sys
 
@@ -162,21 +161,21 @@ class Game:
         if rule_a is not None and weight_a > weight_b:
             group = "A"
             score = GameState.calculate_score(DicePut(rule_a, final_group_a))
-        elif rule_b is not None:
+        elif rule_b is not None and weight_b > weight_a:
             group = "B"
             score = GameState.calculate_score(DicePut(rule_b, final_group_b))
         else:
-            # dice_a, dice_b들의 score가 0이면, 무작위로 선택
-            # NOTE: 이거 무작위로 선택하게 되면 최종 점수가 랜덤성이 생김
-            #       단순하게 A나 B로 선택하게 하는 것도 나쁘지 않을듯
-            group = choice(["A", "B"])
+            # dice_a, dice_b의 우열이 없으면, 전체 다이스에서
+            # 중요도가 높은 숫자들이 많은 그룹에 입찰
+            weight_a = sum(self.get_importance_of_numbers(group_a, self.my_state))
+            weight_b = sum(self.get_importance_of_numbers(group_b, self.my_state))
+            group = "A" if weight_a >= weight_b else "B"
             score = 0
         
         # 보수적인 입찰 금액 산정
         score_diff = self.my_state.get_total_score() - self.opp_state.get_total_score()
 
         # TODO: 승기를 잡고있다는 기준을 현재 점수가 아닌 기대 점수에 따른 방향으로 변경해야함.
-        # 만약 5000점 이상 이기고 있다면, 위험을 감수하지 않고 0을 베팅하여 리드를 지킴
         if False:
             return Bid(group, 0)
         else:
