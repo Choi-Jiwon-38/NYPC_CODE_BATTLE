@@ -218,6 +218,8 @@ class Game:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
             return DicePut(rule_to_sacrifice, [])
         
+        print(f"{self.round}R, dice pool: {sorted(dice_pool)}", file=sys.stderr) # 디버깅용
+
         # 규칙이 2개 남은 경우 가중치를 계산하지 않고, 남은 주사위로 
         # 12, 13 라운드에서 가장 큰 점수를 얻을 수 있는 조합을 선별하여 반환.
         remaining_rules = sum(1 for s in self.my_state.rule_score if s is None)
@@ -242,7 +244,7 @@ class Game:
                 elif len(best_put) > 0 and current_weight == max_weight:
                     best_put.append(DicePut(best_rule, dice_list))
 
-            #print(f"{self.round}R CALC END -> max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
+            print(f"{self}R CALC END -> max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
             # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
             #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
             if len(best_put) == 0 or max_weight <= LOW_UTILITY:
@@ -288,8 +290,6 @@ class Game:
 
         # 숫자의 중요도
         W_NUMBERS = list(self.W_NUMBERS_ROUND)
-
-        # print(f"{self.round}R - 현재 importance: {W_NUMBERS}", file=sys.stderr) # 디버깅 용도
 
         # 기본 규칙 중 사용하지 않은 숫자는 많은만큼 가중치 올림
         # 반대로 사용한 숫자는 가중치 내림
@@ -487,7 +487,7 @@ class Game:
         all_rules = list(DiceRule)
         current_numbers = self.get_importance_of_numbers(dice, state)
         current_importance = sum(current_numbers)
-        #print(f"\n{self.round}R, dice: {sorted(dice)}, importance: {current_numbers}", file=sys.stderr) # 디버깅
+        print(f"\n{self.round}R, dice: {sorted(dice)}, importance: {current_numbers}", file=sys.stderr) # 디버깅
 
         # 모든 규칙에 대해 점수를 계산
         for rule in all_rules:
@@ -506,24 +506,13 @@ class Game:
                 
                 tmp_utility = self._get_utility_of_rules(score, rule, dice, state)
                 utility = (tmp_utility * importance)
-                #print(f"{self.round}R, score: {score}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
-
-                # 게임 진행 상황 고려
-                # NOTE: 이것만 고려해도 괜찮나?
-                remaining_rules = sum(1 for s in state.rule_score if s is None)
-                if remaining_rules <= NR_END_GAME:  # 게임 후반부
-                    # 높은 점수 조합 우선
-                    if rule in [DiceRule.YACHT, DiceRule.LARGE_STRAIGHT, DiceRule.SMALL_STRAIGHT]:
-                        utility *= W_HIGH_PROMOTION
-                    # 낮은 점수라도 확실한 점수 확보
-                    elif score > 0:
-                        utility *= W_LOW_PROMOTION
+                print(f"{self.round}R, score: {sum(1 for s in self.my_state.rule_score if s is None)}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
 
                 if utility > max_weight:
                     max_weight, best_rule = utility, rule
         
-        #if max_weight != -1.0:
-            #print(f"{self.round}R, calculate_best_put() END -> rule: {best_rule.name}, local_max_weight: {max_weight}", file=sys.stderr) # 디버깅
+        if max_weight != -1.0:
+            print(f"{self.round}R, calculate_best_put() END -> rule: {best_rule.name}, local_max_weight: {max_weight}", file=sys.stderr) # 디버깅
         return best_rule, max_weight
 
 
