@@ -126,6 +126,8 @@ class Game:
         num_to_pick = 5
         group_a, group_b = dice_a + self.my_state.dice, dice_b + self.my_state.dice
         remaining_rules = sum(1 for s in self.my_state.rule_score if s is None)
+        unique_combination_a = {tuple(sorted(comb)) for comb in combinations(group_a, num_to_pick)}
+        unique_combination_b = {tuple(sorted(comb)) for comb in combinations(group_b, num_to_pick)}
         
         # 12 라운드인 경우 점수의 최대합으로 계산
         final_group_a, final_group_b = [], []
@@ -134,12 +136,12 @@ class Game:
         if remaining_rules <= 2:
             weight_a, weight_b = -1, -1
             tmp_weight_a, tmp_weight_b = -1, -1
-            for dice_combination in combinations(group_a, num_to_pick):
+            for dice_combination in unique_combination_a:
                 tmp_rule_a, tmp_weight_a = self.calculate_end_game(list(dice_combination), self.my_state)
                 if tmp_weight_a > weight_a:
                     final_group_a = list(dice_combination)
                     rule_a, weight_a = tmp_rule_a, tmp_weight_a
-            for dice_combination in combinations(group_b, num_to_pick):
+            for dice_combination in unique_combination_b:
                 tmp_rule_b, tmp_weight_b = self.calculate_end_game(list(dice_combination), self.my_state)
                 if tmp_weight_b > weight_b:
                     final_group_b = list(dice_combination)
@@ -148,12 +150,12 @@ class Game:
         else:
             weight_a, weight_b = -1.0, -1.0
             tmp_weight_a, tmp_weight_b = -1.0, -1.0
-            for dice_combination in combinations(group_a, num_to_pick):
+            for dice_combination in unique_combination_a:
                 tmp_rule_a, tmp_weight_a = self.calculate_best_put(list(dice_combination), self.my_state)
                 if tmp_weight_a > weight_a:
                     final_group_a = list(dice_combination)
                     rule_a, weight_a = tmp_rule_a, tmp_weight_a
-            for dice_combination in combinations(group_b, num_to_pick):
+            for dice_combination in unique_combination_b:
                 tmp_rule_b, tmp_weight_b = self.calculate_best_put(list(dice_combination), self.my_state)
                 if tmp_weight_b > weight_b:
                     final_group_b = list(dice_combination)
@@ -212,20 +214,21 @@ class Game:
         best_put = []
         max_weight = -1.0
         
-        dice_pool = self.my_state.dice
+        dice_pool = sorted(self.my_state.dice)
         num_to_pick = 5 if len(dice_pool) >= 5 else len(dice_pool)
         if num_to_pick == 0:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
             return DicePut(rule_to_sacrifice, [])
         
-        print(f"{self.round}R, dice pool: {sorted(dice_pool)}", file=sys.stderr) # 디버깅용
+        print(f"{self.round}R, CALC START -> dice pool: {sorted(dice_pool)}", file=sys.stderr) # 디버깅용
 
         # 규칙이 2개 남은 경우 가중치를 계산하지 않고, 남은 주사위로 
         # 12, 13 라운드에서 가장 큰 점수를 얻을 수 있는 조합을 선별하여 반환.
         remaining_rules = sum(1 for s in self.my_state.rule_score if s is None)
+        unique_combination = {tuple(sorted(comb)) for comb in combinations(dice_pool, num_to_pick)}
         if remaining_rules <= 2:
             max_score = -1
-            for dice_combination in combinations(dice_pool, num_to_pick):
+            for dice_combination in unique_combination:
                 current_rule, current_score = self.calculate_end_game(list(dice_combination), self.my_state)
                 if current_score > max_score:
                     best_put = list(dice_combination)
@@ -235,7 +238,7 @@ class Game:
 
         else:
             # 모든 조합에 대해 max_weight인 조합을 선별
-            for dice_combination in combinations(dice_pool, num_to_pick):
+            for dice_combination in unique_combination:
                 dice_list = list(dice_combination)
                 best_rule, current_weight = self.calculate_best_put(dice_list, self.my_state)
                 if current_weight > max_weight:
@@ -244,7 +247,7 @@ class Game:
                 elif len(best_put) > 0 and current_weight == max_weight:
                     best_put.append(DicePut(best_rule, dice_list))
 
-            print(f"{self}R CALC END -> max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
+            print(f"{self.round}R, CALC END -> max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
             # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
             #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
             if len(best_put) == 0 or max_weight <= LOW_UTILITY:
@@ -406,7 +409,6 @@ class Game:
 
             # 우선순위 2번: FOUR, FIVE, SIX
             # 4개 이상이면 큰 가중치를, 5개 이상이면 매우 큰 가중치 적용
-            # NOTE: 이거 1, 2, 3에도 적용해도 될 것 같은데
             if dice_number in [4, 5, 6]:
                 if count_of_number == 5:
                     utility *= W_YACHT
