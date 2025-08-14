@@ -359,25 +359,32 @@ class Game:
         # 임시로 None이 아닌 값으로 변경
         self.my_state.rule_score[sacrifice.value] = 0
 
-        victim_list = []
-        for _ in range(num_to_pick):
-            remaining_dices = list(dice) 
-            for d in victim_list:
-                if d in remaining_dices:
-                    remaining_dices.remove(d)
-            
-            W_NUMBERS = self.get_importance_of_numbers(remaining_dices, self.my_state)
+        victim_list: List[int] = []
+        # 남은 주사위를 “멀티셋”처럼 다루기 위해 복사본 사용
+        pool = list(dice)
 
-            min_importance, victim_dice = sys.maxsize, -1
-            for number in remaining_dices:
+        for _ in range(min(num_to_pick, len(pool))):
+            # 현재 pool 기준으로 중요도 계산
+            W_NUMBERS = self.get_importance_of_numbers(pool, self.my_state)
+
+            min_importance = sys.maxsize
+            victim_idx = -1
+
+            # 한 개만 제거해야 하므로 인덱스 기반으로 탐색
+            for i, number in enumerate(pool):
                 num_idx = number - 1
                 if W_NUMBERS[num_idx] < min_importance:
                     min_importance = W_NUMBERS[num_idx]
-                    victim_dice = number
+                    victim_idx = i
 
-            assert victim_dice != -1
-            victim_list.append(victim_dice)
-        
+            assert victim_idx != -1  # 더 뽑을게 없으면 여기 걸릴 수 있음
+            victim_list.append(pool[victim_idx])
+            # 같은 숫자 “한 개만” 제거
+            pool.pop(victim_idx)
+
+            if not pool:  # 더 이상 남은 주사위가 없으면 중단
+                break
+
         # state의 rule_score를 변경하는 것은 이 함수의
         # 역할이 아니므로, 다시 None 값으로 설정
         self.my_state.rule_score[sacrifice.value] = None
