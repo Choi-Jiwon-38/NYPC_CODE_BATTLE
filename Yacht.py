@@ -193,9 +193,9 @@ class Game:
 
             # 점수에 따른 베팅 전략
             if score >= 50000:  # Yacht - 가장 공격적
-                amount = int(max_opp_bid * 1.2)  # 최대 베팅의 1.2배
+                amount = int(max_opp_bid * 1.05)  # 최대 베팅의 1.2배
             elif score >= 30000:  # Large Straight - 매우 공격적
-                amount = int(top_3_avg * 1.1)  # 상위 3개 평균의 1.1배
+                amount = int(top_3_avg * 1.1)  # 최상위 제외 상위 3개 평균의 1.1배
             elif score >= 15000:  # Small Straight - 공격적
                 amount = int(top_3_avg * 1.05)  # 상위 3개 평균의 1.05배
             elif score >= 10000:  # 높은 기본 점수 - 적당히 공격적
@@ -507,7 +507,7 @@ class Game:
                     importance = 1
                 
                 tmp_utility = self._get_utility_of_rules(score, rule, dice, state)
-                utility = (tmp_utility * importance)
+                utility = (tmp_utility)
                 print(f"{self.round}R, score: {score // 1000}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
 
                 if utility > max_weight:
