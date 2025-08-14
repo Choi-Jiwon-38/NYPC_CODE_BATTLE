@@ -64,14 +64,14 @@ SACRIFICE_PRIORITY = [
 # 가중치 상수들
 # 가중치 조정할 때 숫자를 변경하여 조절할 것!
 
-W_YACHT = 2.0
+W_YACHT = 4.0
 W_LARGE_STRAIGHT = 1.5
-W_SMALL_STRAIGHT = 1.3
+W_SMALL_STRAIGHT = 1.2
 W_DEMOTION = 0.8
 W_HIGH_PROMOTION = 1.2
 W_LOW_PROMOTION = 1.1
-W_NICE_CHOICE = 1.15
-W_BAD_CHOICE = 0.9
+W_NICE_CHOICE = 0.01
+W_BAD_CHOICE = 0.01
 
 # 숫자의 중요도
 # NOTE: 일단 합연산으로 구현은 했으나, 이렇게 구현해도 괜찮을지 고민 필요
@@ -505,7 +505,7 @@ class Game:
                 basic_score = sum(s for i, s in enumerate(state.rule_score) if s and i <= 5)
                 # Bonus를 획득하지 않은 경우 기본 규칙에 importance를 사용
                 if basic_score < 63000 and rule.value <= 5:
-                    importance = current_importance
+                    importance = 3
                 else:
                     importance = 1
                 
