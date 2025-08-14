@@ -377,7 +377,6 @@ class Game:
                     min_importance = W_NUMBERS[num_idx]
                     victim_idx = i
 
-            assert victim_idx != -1  # 더 뽑을게 없으면 여기 걸릴 수 있음
             victim_list.append(pool[victim_idx])
             # 같은 숫자 “한 개만” 제거
             pool.pop(victim_idx)
