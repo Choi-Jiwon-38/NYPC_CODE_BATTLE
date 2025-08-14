@@ -505,7 +505,13 @@ class Game:
                 basic_score = sum(s for i, s in enumerate(state.rule_score) if s and i <= 5)
                 # Bonus를 획득하지 않은 경우 기본 규칙에 importance를 사용
                 if basic_score < 63000 and rule.value <= 5:
-                    importance = 3
+                    # 기본 규칙 중 점수 미등록한 개수
+                    remaining_basic = sum(1 for i in range(6) if state.rule_score[i] is None) 
+        
+                    if rule.value <= 3: # 1, 2, 3과 같은 낮은 숫자
+                        importance = 1.5 + (0.1) * remaining_basic
+                    else: # 4, 5, 6과 같은 높은 숫자
+                        importance = 2.5  + (0.1) * remaining_basic
                 else:
                     importance = 1
                 
