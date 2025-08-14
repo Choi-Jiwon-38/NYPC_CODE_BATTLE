@@ -5,6 +5,8 @@ from itertools import combinations
 from collections import Counter
 
 import sys
+import math
+import statistics
 
 # ----------------------------
 # 주의사항:
@@ -122,6 +124,40 @@ class Game:
         # 라운드 별 숫자의 중요도
         self.W_NUMBERS_ROUND = []
 
+    # ================================ [헬퍼] ====================================
+    def _ema(self, arr: List[float], alpha: float) -> float:
+        if not arr:
+            return 0.0
+        v = arr[0]
+        for x in arr[1:]:
+            v = alpha * x + (1 - alpha) * v
+        return v
+
+    def _percentile(self, arr: List[int], p: float) -> float:
+        if not arr:
+            return 0.0
+        a = sorted(arr)
+        k = (len(a) - 1) * p
+        f = math.floor(k); c = math.ceil(k)
+        if f == c:
+            return float(a[int(k)])
+        return a[f] + (a[c] - a[f]) * (k - f)
+
+    def _linreg_slope_norm(self, y: List[float], denom: float) -> float:
+        # 간단 O(n) 최소자승 직선 기울기, x는 0..n-1
+        n = len(y)
+        if n < 2:
+            return 0.0
+        sx = n * (n - 1) / 2.0
+        sx2 = (n - 1) * n * (2 * n - 1) / 6.0
+        sy = sum(y)
+        sxy = sum(i * v for i, v in enumerate(y))
+        num = n * sxy - sx * sy
+        den = n * sx2 - sx * sx
+        m = (num / den) if den != 0 else 0.0
+        return m / max(denom, 1.0)  # 평균 규모로 정규화
+
+
     # ================================ [필수 구현] ================================
 
     def calculate_bid(self, dice_a: List[int], dice_b: List[int]) -> Bid:
@@ -187,28 +223,60 @@ class Game:
         # 상대방 히스토리 기반 베팅 금액 계산 
         # + 기대 점수의 차이 값으로 보정
         if self.opp_bid_history:
-            # 상대방 베팅 히스토리 분석
-            max_opp_bid = 1 if max(self.opp_bid_history) == 0 else max(self.opp_bid_history)
-            sorted_bids = sorted(self.opp_bid_history, reverse=True)
-            top_3_avg = 1 if sum(sorted_bids[1:4]) / min(3, len(sorted_bids)) == 0 else sum(sorted_bids[1:4]) / min(3, len(sorted_bids))
-            avg_opp_bid = 1 if sum(self.opp_bid_history) / len(self.opp_bid_history) == 0 else sum(self.opp_bid_history) / len(self.opp_bid_history)
+            bids = self.opp_bid_history[-10:]  # 최근 10개만 사용
+            max_opp_bid = max(bids)
+            avg_opp_bid = sum(bids) / len(bids)
+            # 상위 3 평균(최댓값 제외)
+            sb = sorted(bids, reverse=True)
+            top3_excl_max = (sum(sb[1:4]) / max(1, min(3, len(sb) - 1))) if len(sb) > 1 else avg_opp_bid
 
-            # 점수에 따른 베팅 전략
-            if score >= 50000:  # Yacht - 가장 공격적
-                amount = int(max_opp_bid * 1.05)  # 최대 베팅의 1.2배
-            elif score >= 30000:  # Large Straight - 매우 공격적
-                amount = int(top_3_avg * 1.1)  # 최상위 제외 상위 3개 평균의 1.1배
-            elif score >= 15000:  # Small Straight - 공격적
-                amount = int(top_3_avg * 1.05)  # 상위 3개 평균의 1.05배
-            elif score >= 10000:  # 높은 기본 점수 - 적당히 공격적
-                amount = int(avg_opp_bid * 1.1)  # 평균 베팅의 1.1배
+            # --- 베이스 금액(현재 규칙 기대점 기반) ---
+            if score >= 50000:       # Yacht
+                base_amt = int(max_opp_bid * 1.20)
+            elif score >= 30000:     # Large Straight
+                base_amt = int(top3_excl_max * 1.10)
+            elif score >= 15000:     # Small Straight
+                base_amt = int(top3_excl_max * 1.05)
+            elif score >= 10000:     # 높은 상단
+                base_amt = int(avg_opp_bid * 1.30)
             else:
-                amount = int(avg_opp_bid * 0.5)  # 평균 베팅의 0.5배
-            
-            # 보정 값 추가
+                base_amt = int(avg_opp_bid * 1.00)
+
+            # --- 추세 추종 보정 (핵심) ---
+            # 단기-장기 모멘텀
+            short = self._ema(bids, alpha=0.6)
+            long  = self._ema(bids, alpha=0.2)
+            momentum = (short - long) / max(long, 1.0)   # 양수면 상승 추세
+
+            # 추세 기울기(선형회귀) 정규화
+            slope_norm = self._linreg_slope_norm(bids, denom=long)
+
+            # 변동성 완화(너무 들쭉날쭉하면 과잉 추종 억제)
+            if len(bids) >= 3 and avg_opp_bid > 0:
+                stdev = statistics.pstdev(bids)
+                cv = stdev / avg_opp_bid               # 변동계수
+            else:
+                cv = 0.0
+            volatility_damper = 1.0 / (1.0 + 0.7 * cv) # 0.5~1.0 범위로 줄어들 수 있음
+
+            # 라운드 후반 가중(후반부일수록 추세를 더 신뢰)
+            phase = min(max(self.round, 1), 13) / 13.0
+            phase_boost = 1.0 + 0.3 * phase * max(momentum, 0.0)  # 최대 +30% * 모멘텀
+
+            # 최종 추세 멀티플라이어 (상한 클램프)
+            raw_boost = 1.0 + (0.6 * momentum + 0.4 * slope_norm)
+            trend_boost = max(1.0, min(raw_boost * volatility_damper * phase_boost, 1.6))
+
+            # 동적 바닥(최근 70퍼센타일과 장기평균 기반 바닥 중 큰 값)
+            p70 = self._percentile(bids, 0.70)
+            dynamic_floor = max(p70, long * (1.0 + 0.5 * max(momentum, 0.0)))
+
+            amount = int(base_amt * trend_boost)
+            amount = max(amount, int(dynamic_floor))
             amount += score_diff
         else:
             amount = 0
+
         
         return Bid(group, amount)
     
