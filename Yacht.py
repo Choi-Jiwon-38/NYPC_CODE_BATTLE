@@ -75,8 +75,8 @@ W_BAD_CHOICE = 0.01
 
 # 숫자의 중요도
 # NOTE: 일단 합연산으로 구현은 했으나, 이렇게 구현해도 괜찮을지 고민 필요
-W_UP_IMPORTANT = 0.2     
-W_DOWN_IMPORTANT = -0.2  
+W_UP_IMPORTANT = 0.1
+W_DOWN_IMPORTANT = -0.1  
 W_VERY_IMPORTANT = W_UP_IMPORTANT * 3
 W_NOT_IMPORTANT = W_DOWN_IMPORTANT * 3
 W_NUMBERS_INIT = [
