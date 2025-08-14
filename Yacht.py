@@ -490,7 +490,6 @@ class Game:
         
         all_rules = list(DiceRule)
         current_numbers = self.get_importance_of_numbers(dice, state)
-        current_importance = sum(current_numbers[dice_num - 1] for dice_num in dice) / 6
 
         if DEBUG_MODE: print(f"\n{self.round}R, dice: {sorted(dice)}, importance: {current_numbers}", file=sys.stderr) # 디버깅
 
@@ -505,13 +504,29 @@ class Game:
                 basic_score = sum(s for i, s in enumerate(state.rule_score) if s and i <= 5)
                 # Bonus를 획득하지 않은 경우 기본 규칙에 importance를 사용
                 if basic_score < 63000 and rule.value <= 5:
+                    """
+                    [ FEEDBACK ME ]
+                    이전에는 기본점수 규칙에서 Bonus를 획득하지 않은 경우, 현재 주사위의 중요도의 평균을 적용해주고 있음.
+                    
+                    current_importance = sum(current_numbers[dice_num - 1] for dice_num in dice) / 6
                     importance = current_importance
+                    
+                    여기서 중요도를 곱할 때, 현재 주사위의 중요도 평균을 구할 이유가 따로 없음.
+                    
+                    오히려 현재처럼 기본 점수 규칙으로 bonus를 획득하지 못한 경우, 중요도를 올린다면 아래와 같은 요소로 인하여 움직여야됨.
+                    1. 현재의 rule(ONE ~ SIX)이 아직 족보에 등록되어 있지 않음. -> 중요도를 올려서 Bonus를 빨리 득하도록 함. <= 이 부분은 이미 미등록된 경우에만 계산이 되니까 고정 상수를 곱하면 될듯함
+                    2. 현재 기본 점수 규칙이 족보에 많이 등록되어 있지 않음. -> ONE~SIX까지 미등록된 개수가 많을수록 중요도를 높여야 함.
+                    
+                    위에 기반하여 코드를 대략적으로 짜보면 아래와 같음. (중요도 계산식은 당연히 변경 및 조정 필요)
+                    """ 
+                    remaining_basic = sum(1 for i in range(6) if state.rule_score[i] is None)
+                    importance = 4 + (0.1) * remaining_basic 
                 else:
                     importance = 1
                 
                 tmp_utility = self._get_utility_of_rules(score, rule, dice, state)
-                utility = (tmp_utility)
                 if DEBUG_MODE: print(f"{self.round}R, score: {score // 1000}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
+                utility = (tmp_utility) * importance
 
                 if utility > max_weight:
                     max_weight, best_rule = utility, rule
