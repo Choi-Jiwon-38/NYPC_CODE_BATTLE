@@ -13,6 +13,8 @@ import sys
 # 주석처리가 되어 있는지 확인 후 제출할 것!
 # ----------------------------
 
+DEBUG_MODE = False
+
 # 가능한 주사위 규칙들을 나타내는 enum
 class DiceRule(Enum):
     ONE = 0
@@ -220,7 +222,7 @@ class Game:
             rule_to_sacrifice = next(r for r in SACRIFICE_PRIORITY if self.my_state.rule_score[r.value] is None)
             return DicePut(rule_to_sacrifice, [])
         
-        print(f"{self.round}R, CALC START -> dice pool: {sorted(dice_pool)}", file=sys.stderr) # 디버깅용
+        if DEBUG_MODE: print(f"{self.round}R, CALC START -> dice pool: {sorted(dice_pool)}", file=sys.stderr) # 디버깅용
 
         # 규칙이 2개 남은 경우 가중치를 계산하지 않고, 남은 주사위로 
         # 12, 13 라운드에서 가장 큰 점수를 얻을 수 있는 조합을 선별하여 반환.
@@ -247,7 +249,7 @@ class Game:
                 elif len(best_put) > 0 and current_weight == max_weight:
                     best_put.append(DicePut(best_rule, dice_list))
 
-            print(f"{self.round}R, CALC END -> max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
+            if DEBUG_MODE: print(f"{self.round}R, CALC END -> max weight: {max_weight}", file=sys.stderr); print(f"{self.round}R - best_put: {best_put}", file=sys.stderr) # 디버깅 용도
             # NOTE: 우리의 기저 전략이 Bonus의 달성 유무에 따라 라운드의 사용 가중치 종류가
             #       다름. i.e.) 라운드마다 utility만 사용 또는 utility * importance 사용이 발생함
             if len(best_put) == 0 or max_weight <= LOW_UTILITY:
@@ -495,7 +497,8 @@ class Game:
         all_rules = list(DiceRule)
         current_numbers = self.get_importance_of_numbers(dice, state)
         current_importance = sum(current_numbers[dice_num - 1] for dice_num in dice) / 6
-        print(f"\n{self.round}R, dice: {sorted(dice)}, importance: {current_numbers}", file=sys.stderr) # 디버깅
+
+        if DEBUG_MODE: print(f"\n{self.round}R, dice: {sorted(dice)}, importance: {current_numbers}", file=sys.stderr) # 디버깅
 
         # 모든 규칙에 대해 점수를 계산
         for rule in all_rules:
@@ -514,13 +517,13 @@ class Game:
                 
                 tmp_utility = self._get_utility_of_rules(score, rule, dice, state)
                 utility = (tmp_utility * importance)
-                print(f"{self.round}R, score: {score // 1000}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
+                if DEBUG_MODE: print(f"{self.round}R, score: {score // 1000}, rule: {rule.name}, utility: {score / AVERAGE_SCORES.get(rule, 1)}, get_ut: {tmp_utility}, importance: {importance}, total_weight: {utility}", file=sys.stderr) # 디버깅
 
                 if utility > max_weight:
                     max_weight, best_rule = utility, rule
         
         if max_weight != -1.0:
-            print(f"{self.round}R, calculate_best_put() END -> rule: {best_rule.name}, local_max_weight: {max_weight}", file=sys.stderr) # 디버깅
+            if DEBUG_MODE: print(f"{self.round}R, calculate_best_put() END -> rule: {best_rule.name}, local_max_weight: {max_weight}", file=sys.stderr) # 디버깅
         return best_rule, max_weight
 
 
