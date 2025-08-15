@@ -417,9 +417,9 @@ class Game:
                 else:
                     if dice_number in [5, 6]: # 5, 6은 좀더 빡빡하게
                         if count_of_number <= 2:
-                            utility *= 0.1
+                            utility *= 0.2
                         else:
-                            utility *= 0.2 
+                            utility *= 0.4 
                     else:
                         utility *= W_DEMOTION      
             # ONE, TWO의 경우에는 YATCH를 노리는 용도로 사용, YATCH를 먹었다면 해당 사항 없음
