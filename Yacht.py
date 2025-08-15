@@ -415,11 +415,24 @@ class Game:
                 elif count_of_number >= 4:
                     utility *= W_HIGH_PROMOTION
                 else:
-                    utility *= W_DEMOTION
-                    
-            # 그 외 나머지 기본 규칙(ONE, TWO, THREE)은 낮은 가중치 적용
+                    if dice_number in [5, 6]: # 5, 6은 좀더 빡빡하게
+                        if count_of_number <= 2:
+                            utility *= 0.1
+                        else:
+                            utility *= 0.2 
+                    else:
+                        utility *= W_DEMOTION      
+            # ONE, TWO의 경우에는 YATCH를 노리는 용도로 사용, YATCH를 먹었다면 해당 사항 없음
             else:
-                utility *= W_DEMOTION
+                if self.my_state.rule_score[11] is None: 
+                    if count_of_number == 5:
+                        utility *= 0.1
+                    elif count_of_number == 4:
+                        utility *= 0.2
+                    else: # 1~3개가 모이면 털 수 있도록
+                        utility *= W_HIGH_PROMOTION
+                else:
+                    utility *= W_DEMOTION
 
         # --- 조합 규칙 ---
         else:
