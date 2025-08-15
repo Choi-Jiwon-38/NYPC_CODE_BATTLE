@@ -70,8 +70,7 @@ W_SMALL_STRAIGHT = 1.2
 W_DEMOTION = 0.8
 W_HIGH_PROMOTION = 1.2
 W_LOW_PROMOTION = 1.1
-W_NICE_CHOICE = 0.01
-W_BAD_CHOICE = 0.01
+W_CHOICE = 0.01
 
 # 숫자의 중요도
 # NOTE: 일단 합연산으로 구현은 했으나, 이렇게 구현해도 괜찮을지 고민 필요
@@ -90,7 +89,6 @@ W_NUMBERS_INIT = [
 
 LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
 BID_DIFF_RATE = 0.02      # 경매 입찰 시 입찰 점수 보정 비율
-SCORE_GOOD_CHOICE = 27    # W_NICE_CHOICE를 적용할 임계 점수
 SCORE_HIGH_FULLHOUSE = 22 # Full House가 좋은 선택일지 정하는 임계 점수
 SCORE_HIGH_FOK = 18       # Four of Kind가 좋은 선택일지 정하는 임계 점수
 NR_END_GAME = 2           # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
@@ -445,13 +443,10 @@ class Game:
                     utility *= W_HIGH_PROMOTION
                 else:
                     utility *= W_DEMOTION
-            # Choice 규칙
-            # TODO: 초이스 규칙을 좀 더 고급 짬통으로 만들어야 함.
+
+            # Choice는 항상 마지막에 사용할 수 있도록 함
             elif rule == DiceRule.CHOICE:
-                if dice_sum >= SCORE_GOOD_CHOICE:
-                    utility *= W_NICE_CHOICE
-                else:
-                    utility *= W_BAD_CHOICE
+                utility *= W_CHOICE
 
         return utility
 
