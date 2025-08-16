@@ -406,6 +406,7 @@ class Game:
         if rule.value <= 5:
             dice_number = rule.value + 1
             count_of_number = dice.count(dice_number)
+            count_of_number_all_dice = state.dice.count(dice_number)
 
             # 우선순위 2번: FOUR, FIVE, SIX
             # 4개 이상이면 큰 가중치를, 5개 이상이면 매우 큰 가중치 적용
@@ -425,9 +426,9 @@ class Game:
             # ONE, TWO의 경우에는 YATCH를 노리는 용도로 사용, YATCH를 먹었다면 해당 사항 없음
             else:
                 if self.my_state.rule_score[11] is None: 
-                    if count_of_number == 5:
+                    if count_of_number_all_dice >= 5:
                         utility *= 0.1
-                    elif count_of_number == 4:
+                    elif count_of_number_all_dice == 4:
                         utility *= 0.2
                     else: # 1~3개가 모이면 털 수 있도록
                         utility *= W_HIGH_PROMOTION
