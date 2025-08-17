@@ -50,7 +50,7 @@ def calculate_score(dice, rule):
 # --- 상수 정의 ---
 NUM_ROUNDS = 13
 NUM_RULES = 12
-UPPER_SCORE_LIMIT = 106 # 0~63점까지 상태로 관리
+UPPER_SCORE_LIMIT = 325 # 0~63점까지 상태로 관리
 ALL_DICE_FACES = range(1, 7)
 
 # --- 주사위 조합 및 확률 미리 계산 ---
@@ -112,7 +112,7 @@ def find_best_action_value(total_dices, current_mask, current_upper_score, next_
             
             # 보너스 점수 처리
             bonus_score = 0
-            if current_upper_score < 63 or next_upper_score >= 63:
+            if current_upper_score < 63 and next_upper_score >= 63:
                 bonus_score = 35000
             
             next_upper_score = min(next_upper_score, UPPER_SCORE_LIMIT - 1)

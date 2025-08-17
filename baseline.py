@@ -310,7 +310,10 @@ class Game:
 
         victim_list = []
         for _ in range(num_to_pick):
-            remaining_dices = [d for d in dice if d not in victim_list]
+            remaining_dices = list(dice) 
+            for d in victim_list:
+                if d in remaining_dices:
+                    remaining_dices.remove(d)
             W_NUMBERS = self.get_importance_of_numbers(remaining_dices, self.my_state)
 
             min_importance, victim_dice = sys.maxsize, -1
