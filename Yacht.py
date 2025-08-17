@@ -88,7 +88,7 @@ W_NUMBERS_INIT = [
 ] # 높은 숫자일수록 기본적으로 중요도가 높음
 
 LOW_UTILITY = 0.01        # 효율성이 이 이하이면 SACRIFICE
-BID_DIFF_RATE = 0.02      # 경매 입찰 시 입찰 점수 보정 비율
+# BID_DIFF_RATE = 0.02      # 경매 입찰 시 입찰 점수 보정 비율
 SCORE_HIGH_FULLHOUSE = 22 # Full House가 좋은 선택일지 정하는 임계 점수
 SCORE_HIGH_FOK = 18       # Four of Kind가 좋은 선택일지 정하는 임계 점수
 NR_END_GAME = 2           # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
@@ -164,51 +164,20 @@ class Game:
         # 각 그룹의 기대 점수 차이 계산
         score_a = 0 if rule_a is None else GameState.calculate_score(DicePut(rule_a, final_group_a))
         score_b = 0 if rule_b is None else GameState.calculate_score(DicePut(rule_b, final_group_b))
-        score_diff = int(abs(score_a - score_b) * BID_DIFF_RATE)
+        score_diff = int(abs(score_a - score_b))
 
-        # 더 높은 효율을 가진 그룹에 입찰
-        if rule_a is not None and weight_a > weight_b:
-            group = "A"
-            score = score_a
-        elif rule_b is not None and weight_b > weight_a:
-            group = "B"
-            score = score_b
-        else:
-            # dice_a, dice_b의 우열이 없으면, 전체 다이스에서
-            # 중요도가 높은 숫자들이 많은 그룹에 입찰
+        amount = score_diff * 0.25
+
+        if score_diff <= 2000:
             importance_a = sum(self.get_importance_of_numbers(group_a, self.my_state))
             importance_b = sum(self.get_importance_of_numbers(group_b, self.my_state))
             group = "A" if importance_a >= importance_b else "B"
-            score = 0
-
-        # TODO: 승기를 잡고있다는 기준을 현재 점수가 아닌 기대 점수에 따른 방향으로 변경해야함.
-        # 상대방 히스토리 기반 베팅 금액 계산 
-        # + 기대 점수의 차이 값으로 보정
-        if self.opp_bid_history:
-            # 상대방 베팅 히스토리 분석
-            max_opp_bid = 1 if max(self.opp_bid_history) == 0 else max(self.opp_bid_history)
-            sorted_bids = sorted(self.opp_bid_history, reverse=True)
-            top_3_avg = 1 if sum(sorted_bids[1:4]) / min(3, len(sorted_bids)) == 0 else sum(sorted_bids[1:4]) / min(3, len(sorted_bids))
-            avg_opp_bid = 1 if sum(self.opp_bid_history) / len(self.opp_bid_history) == 0 else sum(self.opp_bid_history) / len(self.opp_bid_history)
-
-            # 점수에 따른 베팅 전략
-            if score >= 50000:  # Yacht - 가장 공격적
-                amount = int(max_opp_bid * 1.2)  # 최대 베팅의 1.2배
-            elif score >= 30000:  # Large Straight - 매우 공격적
-                amount = int(top_3_avg * 1.1)  # 상위 3개 평균의 1.1배
-            elif score >= 15000:  # Small Straight - 공격적
-                amount = int(top_3_avg * 1.05)  # 상위 3개 평균의 1.05배
-            elif score >= 10000:  # 높은 기본 점수 - 적당히 공격적
-                amount = int(avg_opp_bid * 1.1)  # 평균 베팅의 1.1배
-            else:
-                amount = int(avg_opp_bid * 0.5)  # 평균 베팅의 0.5배
-            
-            # 보정 값 추가
-            amount += score_diff
+            # 어떤 주사위 그룹을 선택해도 얻을 수 있는 점수가 비슷하면 베팅 금액을 대폭 감소시킴.
+            amount *= 0.2
         else:
-            amount = 0
+            group = "A" if weight_a > weight_b else "B"
         
-        return Bid(group, amount)
+        return Bid(group, int(amount))
     
     def calculate_put(self) -> DicePut:
         best_put = []
