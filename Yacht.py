@@ -192,7 +192,7 @@ class Game:
         # 최근 데이터가 충분치 않으면 그대로 반환
         recent = self.opp_bid_history[-OPP_RECENT_N:]
         if len(recent) < 3:
-            return int(amount)
+            return int(max(100, amount))
 
         opp_avg = sum(recent) / len(recent)
         opp_max = max(recent)
