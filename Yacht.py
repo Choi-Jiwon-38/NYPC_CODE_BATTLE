@@ -93,6 +93,12 @@ SCORE_HIGH_FULLHOUSE = 22 # Full House가 좋은 선택일지 정하는 임계 �
 SCORE_HIGH_FOK = 18       # Four of Kind가 좋은 선택일지 정하는 임계 점수
 NR_END_GAME = 2           # 게임 후반부인지 판단할 남은 Rule 개수의 임계값
 
+
+OPP_RECENT_N = 4            # 최근 N개 라운드만 관찰
+OPP_AVG_MULT = 1.25         # 평균 대비 어느 정도까지는 허용(여유분)
+OPP_MARGIN_MIN = 50         # 최소 마진
+OPP_MARGIN_MAX = 2000       # 최대 마진
+OPP_MARGIN_FACTOR = 0.05    # margin = score_diff * 이 값 (clamp 적용)
 # ==================================================================== #
 
 # 입찰 방법을 나타내는 데이터클래스
@@ -177,7 +183,31 @@ class Game:
         else:
             group = "A" if weight_a > weight_b else "B"
         
+        # [NEW] 상대 최근 베팅 성향(평균/최대) 기반 '하향 조정만' 적용
+        amount = self._cap_bid_with_opp_stats(amount, score_diff)
+        
         return Bid(group, int(amount))
+
+    def _cap_bid_with_opp_stats(self, amount: float, score_diff: int) -> int:
+        # 최근 데이터가 충분치 않으면 그대로 반환
+        recent = self.opp_bid_history[-OPP_RECENT_N:]
+        if len(recent) < 3:
+            return int(max(0, min(100000, round(amount))))
+
+        opp_avg = sum(recent) / len(recent)
+        opp_max = max(recent)
+
+        # score_diff 크기에 비례한 안전 마진 (과도하지 않도록 clamp)
+        margin = max(OPP_MARGIN_MIN, min(OPP_MARGIN_MAX, int(score_diff * OPP_MARGIN_FACTOR)))
+
+        # 평균과 최대치를 종합한 상한선: "평균의 여유배수"와 "최대치 + 마진" 중 더 큰 값을 사용
+        cap_by_avg = opp_avg * OPP_AVG_MULT
+        cap_by_max = opp_max + margin
+        soft_cap = max(cap_by_avg, cap_by_max)
+
+        new_amount = min(amount, soft_cap)
+        # 안전 범위 보정
+        return int(max(0, min(100000, round(new_amount))))
     
     def calculate_put(self) -> DicePut:
         best_put = []
