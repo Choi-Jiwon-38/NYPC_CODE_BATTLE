@@ -210,3 +210,6 @@ __marimo__/
 *.txt
 config.ini
 testing-tool-yacht.py
+*.zip
+*.json
+*.bin
