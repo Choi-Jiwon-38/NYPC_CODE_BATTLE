@@ -192,7 +192,7 @@ class Game:
         # 최근 데이터가 충분치 않으면 그대로 반환
         recent = self.opp_bid_history[-OPP_RECENT_N:]
         if len(recent) < 3:
-            return int(max(0, min(100000, round(amount))))
+            return int(amount)
 
         opp_avg = sum(recent) / len(recent)
         opp_max = max(recent)
@@ -205,9 +205,9 @@ class Game:
         cap_by_max = opp_max + margin
         soft_cap = max(cap_by_avg, cap_by_max)
 
-        new_amount = min(amount, soft_cap)
-        # 안전 범위 보정
-        return int(max(0, min(100000, round(new_amount))))
+        new_amount = int(min(amount, soft_cap))
+
+        return new_amount
     
     def calculate_put(self) -> DicePut:
         best_put = []
