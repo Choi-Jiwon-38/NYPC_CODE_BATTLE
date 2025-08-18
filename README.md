@@ -45,4 +45,4 @@
 | 8월 17일<br/>15:00:00 | 1850 - 134위 / 620팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0817/15.py) |
 | 8월 17일<br/>23:00:00 | 1810 - 202위 / 635팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0817/23.py) |
 | 8월 18일<br/>15:00:00 | 1840 - 89위 / 663팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0818/15.py) |
-| 8월 18일<br/>21:00:00 | ???? - ???위 / 681팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0818/21.py) |
+| 8월 18일<br/>21:00:00 | 1870 - 118위 / 681팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0818/21.py) |
