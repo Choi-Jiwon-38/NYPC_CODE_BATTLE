@@ -1,19 +1,30 @@
 # NYPC_CODE_BATTLE
 
-NYPC CODE BATTLE
+### 문제
 
-# TODO LIST 및 체크 포인트
+### VS: 전국의 참가자
 
-2025-08-10
-
-1. `FOUR_OF_A_KIND`와 `FULL_HOUSE`를 사용할 때, 높은 점수를 먹는 것은 좋으나 기본 점수 규칙에서 등록되지 않은 숫자를 사용하는 것은 지양해야 됨. => 기본 점수 규칙은 최소 각 숫자를 3개씩 사용해야지 달성할 수 있기 때문에 `FOUR_OF_A_KIND`와 `FULL_HOUSE`에 사용되면 기본 점수 규칙을 통한 보너스 달성이 힘들어짐.
-2. 상대방이 계속 0점을 베팅에 이용하는 경우, 그것보다 약간 더 높은 점수를 베팅하면 무조건적으로 패를 선점할 수 있음. => 상대방 전략을 파악해서 예측하는 로직을 만들면 좋을 것 같음. 일단, 고정 수치를 사용하는 상대방을 파악하는 건 비교적 쉬워보임.
-
-2025-08-12
-1. 로그를 일부 확인해봤을 때 아직 5나 6을 모으지 않고, 3개일 때 사용해버리는 모습이 보였음. 결국 가중치를 더 조정하거나 중요도의 식을 계산 하는 구조를 좀 더 살펴봐야 할 듯.
-
-2. 기댓값을 더욱 높게 상승하니 전체적으로 얻는 점수가 늘어난 걸 확인할 수 있었음. 따라서 전체적인 기댓값의 조정이 필요해보임. 또는, 고정값이 아니라 동적으로 계산하는 정원이의 의견도 있기에 한 번 고려해볼 필요가 있어보임.
-
-3. 차이가 5000점일 때 0을 베팅하는 전략을 제외했을 때 퍼포먼스가 상승함. 이걸 개선할 방법을 모색해봐야 할 듯.
-
-4. 초이스가 지금은 합이 크냐, 작냐로 단순 계산되고 있는데, 조금 더 고급 짬통의 로직을 구현해야 함.
+| 라운드 시각           | 결과                 | 사용 제출                                                                              |
+| --------------------- | -------------------- | -------------------------------------------------------------------------------------- |
+| 8월 8일<br/>15:00:00  | 권외 / 120팀         | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0808/15.py) |
+| 8월 8일<br/>21:00:00  | 1520 - 21위 / 206팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0808/21.py) |
+| 8월 9일<br/>15:00:00  | 1570 - 27위 / 296팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0809/15.py) |
+| 8월 9일<br/>21:00:00  | 1520 - 106위 /298팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0809/21.py) |
+| 8월 10일<br/>15:00:00 | 1400 - 107위 /336팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0810/15.py) |
+| 8월 10일<br/>21:00:00 | 1620 - 40위 / 359팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0810/21.py) |
+| 8월 11일<br/>15:00:00 | 1650 - 77위 / 401팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0811/15.py) |
+| 8월 11일<br/>21:00:00 | 1670 - 81위 / 417팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0811/21.py) |
+| 8월 12일<br/>15:00:00 | 1550 - 163위 / 449팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0812/15.py) |
+| 8월 12일<br/>21:00:00 | 1740 - 115위 / 469팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0812/21.py) |
+| 8월 13일<br/>15:00:00 | 1590 - 220위 / 486팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0813/15.py) |
+| 8월 13일<br/>21:00:00 | 1590 - 136위 / 498팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0813/21.py) |
+| 8월 14일<br/>15:00:00 | 1540 - 272위 / 526팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0814/15.py) |
+| 8월 14일<br/>21:00:00 | 1850 - 30위 / 542팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0814/21.py) |
+| 8월 15일<br/>15:00:00 | 1770 - 108위 / 556팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0815/15.py) |
+| 8월 15일<br/>21:00:00 | 1820 - 48위 / 568팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0815/21.py) |
+| 8월 16일<br/>15:00:00 | 1870 - 121위 / 586팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0816/15.py) |
+| 8월 16일<br/>21:00:00 | 1840 - 44위 / 602팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0816/21.py) |
+| 8월 17일<br/>15:00:00 | 1850 - 134위 / 620팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0817/15.py) |
+| 8월 17일<br/>23:00:00 | 1810 - 202위 / 635팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0817/23.py) |
+| 8월 18일<br/>15:00:00 | 1840 - 89위 / 663팀  | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0818/15.py) |
+| 8월 18일<br/>21:00:00 | ???? - ???위 / 681팀 | [코드](https://github.com/Choi-Jiwon-38/NYPC_CODE_BATTLE/blob/main/archive/0818/21.py) |
