@@ -1,6 +1,24 @@
 # NYPC_CODE_BATTLE
 
-### 문제
+### Contributor
+
+| <img src="https://github.com/AIJeongwon.png"> | <img src="https://github.com/jinh-636.png"> | <img src="https://github.com/Choi-Jiwon-38.png"> |
+| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------ |
+| [박정원](https://github.com/AIJeongwon)       | [진현](https://github.com/jinh-636)         | [최지원](https://github.com/Choi-Jiwon-38)       |
+
+### Yatch Auction
+
+[![Video Label](http://img.youtube.com/vi/VMbpVmJfBk8/0.jpg)](https://youtu.be/VMbpVmJfBk8)
+
+#### 문제 설명
+
+버섯 게임을 끝낸 예티와 핑크빈은 이제 그란디스로 넘어와, 럭키 다이스 스킬을 쓰며 주사위를 던지던 과거를 회상하며 Yacht Auction이라는 보드게임을 하기로 했습니다.
+
+#### 경기 규칙
+
+- 한 경기는 13번의 라운드로 이루어집니다.
+- 각 라운드는 <b>입찰<b> 단계와 <b>점수 획득<b> 단계로 이루어집니다.
+  - 예외적으로, 첫번째 라운드에서는 <b>점수 획득<b> 단계를 진행하지 않고, 마지막인 13번째 라운드에서는 <b>입찰<b> 단계를 진행하지 않습니다.
 
 ### VS: 전국의 참가자
 
