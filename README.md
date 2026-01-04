@@ -2,9 +2,12 @@
 
 ### Contributor
 
-| <img src="https://github.com/AIJeongwon.png"> | <img src="https://github.com/jinh-636.png"> | <img src="https://github.com/Choi-Jiwon-38.png"> |
+| <img width="200" src="https://github.com/AIJeongwon.png"> | <img width="200" src="https://github.com/jinh-636.png"> | <img width="200" src="https://github.com/Choi-Jiwon-38.png"> |
 | --------------------------------------------- | ------------------------------------------- | ------------------------------------------------ |
 | [박정원](https://github.com/AIJeongwon)       | [진현](https://github.com/jinh-636)         | [최지원](https://github.com/Choi-Jiwon-38)       |
+
+### Certification
+|<img width="300" alt="NYPC 참가 인증서 - 박정원" src="https://github.com/user-attachments/assets/b0008b00-8193-4bd6-b6c4-75281fb943bf" />|<img width="300" alt="NYPC 참가 인증서 - 진현" src="https://github.com/user-attachments/assets/43d02adb-9b67-4154-8b21-5d6cf2f714e3" />|<img width="300" alt="NYPC 참가 인증서 - 최지원" src="https://github.com/user-attachments/assets/11a6d7f4-20d0-4421-9e57-83983b999cd7" />|
 
 ### Yatch Auction
 
